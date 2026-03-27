@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { searchChunks } from '@/lib/chroma'
+import { searchChunks, SearchResult } from '@/lib/chroma'
 import { generateAnswerWithConfidence } from '@/lib/minimax'
 
 export const runtime = 'nodejs'
@@ -32,36 +32,39 @@ export async function POST(request: NextRequest) {
       }))
     }
 
-    // Search knowledge base for relevant context
-    const searchResults = await searchChunks(question, 5)
-    const contextChunks = searchResults.map((r) => r.content)
+    // Search knowledge base for relevant context (hybrid: BM25 + vector)
+    const searchResults: SearchResult[] = await searchChunks(question, 5, {
+      hybridSearch: true,
+      bm25Weight: 0.4,
+    })
 
-    // Generate answer with confidence score
-    const { answer, confidence, retrievedChunks } = await generateAnswerWithConfidence(
+    // Generate answer with confidence score (new Phase 3)
+    const { 
+      answer, 
+      confidence, 
+      confidenceBreakdown,
+      isLowConfidence,
+      suggestion,
+      retrievedChunks 
+    } = await generateAnswerWithConfidence(
       question,
-      contextChunks,
+      searchResults,
       chatHistory
     )
 
-    // Check if AI explicitly says it can't answer
-    const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '无法提供', '抱歉，知识库']
-    const aiCantHelp = cantHelpPhrases.some(phrase => answer.toLowerCase().includes(phrase))
-
-    // Determine ticket creation based on confidence
+    // Determine behavior based on new confidence system
     let shouldCreateTicket = false
     let showAnswer = true
     let status: 'AI_ANSWERED' | 'OPEN' = 'AI_ANSWERED'
+    let displaySuggestion = suggestion
 
-    if (aiCantHelp) {
-      // AI explicitly can't help → directly create ticket, don't show the "can't help" message
+    if (isLowConfidence) {
+      // Low confidence: don't show answer, create ticket
       shouldCreateTicket = true
       showAnswer = false
       status = 'OPEN'
     } else if (confidence < 0.6) {
-      shouldCreateTicket = true
-      showAnswer = false
-      status = 'OPEN'
-    } else if (confidence < 0.8) {
+      // Medium-low confidence: show answer but suggest ticket
       shouldCreateTicket = true
     }
 
@@ -107,11 +110,19 @@ export async function POST(request: NextRequest) {
         ticketId: updatedTicket.id,
         answer: showAnswer ? answer : null,
         confidence,
+        confidenceBreakdown,
+        isLowConfidence,
         shouldCreateTicket,
         showAnswer,
         status: updatedTicket.status,
+        suggestion: displaySuggestion,
         retrievedChunksCount: retrievedChunks.length,
         conversationTurns: chatHistory.length,
+        searchResultsTop3: searchResults.slice(0, 3).map(r => ({
+          header: r.metadata?.header,
+          docName: r.metadata?.doc_name,
+          similarity: Math.round((1 - Math.min(r.distance, 1)) * 100),
+        })),
       })
     } else {
       // Create new ticket
@@ -124,8 +135,10 @@ export async function POST(request: NextRequest) {
           status,
           extractedData: {
             retrievedChunks: retrievedChunks.length,
-            confidenceBreakdown: {},
+            confidenceBreakdown,
             isMultiTurn: chatHistory.length > 0,
+            retrievalScore: confidenceBreakdown.retrievalScore,
+            answerScore: confidenceBreakdown.answerScore,
           },
         },
       })
@@ -156,11 +169,19 @@ export async function POST(request: NextRequest) {
         ticketId: newTicket.id,
         answer: showAnswer ? answer : null,
         confidence,
+        confidenceBreakdown,
+        isLowConfidence,
         shouldCreateTicket,
         showAnswer,
         status: newTicket.status,
+        suggestion: displaySuggestion,
         retrievedChunksCount: retrievedChunks.length,
         conversationTurns: chatHistory.length,
+        searchResultsTop3: searchResults.slice(0, 3).map(r => ({
+          header: r.metadata?.header,
+          docName: r.metadata?.doc_name,
+          similarity: Math.round((1 - Math.min(r.distance, 1)) * 100),
+        })),
       })
     }
   } catch (error) {

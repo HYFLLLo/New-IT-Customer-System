@@ -138,8 +138,8 @@ export async function embedText(text: string): Promise<number[]> {
       const data = await response.json()
       if (data.embedding && Array.isArray(data.embedding)) {
         // Normalize the embedding (L2 norm) for better cosine similarity
-        const embedding = data.embedding
-        const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
+        const embedding: number[] = data.embedding
+        const magnitude = Math.sqrt(embedding.reduce((sum: number, v: number) => sum + v * v, 0))
         if (magnitude > 0) {
           return embedding.map(v => v / magnitude)
         }
@@ -174,23 +174,205 @@ function textToVector(text: string, dim: number = 1536): number[] {
   return vector
 }
 
+export interface SearchResult {
+  id: string
+  content: string
+  distance: number
+  metadata: {
+    doc_name?: string
+    header?: string
+    tags?: string[]
+    chunk_index?: number
+    source?: string
+  }
+  bm25Score?: number
+  vectorScore?: number
+  combinedScore?: number
+}
+
 export interface RAGResult {
   answer: string
   confidence: number
   retrievedChunks: string[]
   confidenceBreakdown: {
-    retrievalScore: number
-    consistencyScore: number
+    retrievalScore: number      // 检索质量分 (50%)
+    answerScore: number       // 答案质量分 (30%)
+    coverageScore: number      // 关键词覆盖分 (20%)
+    finalConfidence: number    // 综合置信度
   }
+  isLowConfidence: boolean    // 是否低置信度
+  suggestion?: string        // 建议
+}
+
+/**
+ * Extract keywords from text (Chinese + English)
+ */
+function extractKeywords(text: string): Set<string> {
+  const chinese = text.match(/[\u4e00-\u9fa5]{2,}/g) || []
+  const english = text.match(/[a-zA-Z]{3,}/g) || []
+  return new Set([...chinese, ...english.map(w => w.toLowerCase())])
+}
+
+/**
+ * Calculate retrieval quality score based on search results
+ */
+function calculateRetrievalScore(
+  question: string,
+  searchResults: SearchResult[]
+): { score: number; details: string } {
+  if (!searchResults || searchResults.length === 0) {
+    return { score: 0, details: 'No results' }
+  }
+
+  const questionKeywords = extractKeywords(question)
+  
+  // Score components
+  let positionScore = 0    // Best result position
+  let coverageScore = 0      // Keyword coverage across results
+  let diversityScore = 0     // Whether results come from different docs
+  
+  const coveredKeywords = new Set<string>()
+  const docNames = new Set<string>()
+  
+  searchResults.forEach((result, idx) => {
+    // Position decay: top results matter more
+    // Top 1 gets 1.0, top 2 gets 0.8, top 3 gets 0.6, etc.
+    const positionWeight = Math.max(0, 1 - idx * 0.2)
+    positionScore += positionWeight * 0.4 // 40% weight for position
+    
+    // Keyword coverage
+    const resultKeywords = extractKeywords(result.content)
+    questionKeywords.forEach(kw => {
+      if (resultKeywords.has(kw)) {
+        coveredKeywords.add(kw)
+      }
+    })
+    
+    // Document diversity
+    if (result.metadata?.doc_name) {
+      docNames.add(result.metadata.doc_name)
+    }
+  })
+  
+  // Coverage: how many question keywords are in results
+  coverageScore = questionKeywords.size > 0 
+    ? (coveredKeywords.size / questionKeywords.size) * 0.4 
+    : 0.4 // 40% weight for coverage
+  
+  // Diversity: more different docs = better
+  diversityScore = Math.min(docNames.size / 3, 1) * 0.2 // 20% weight for diversity
+  
+  const totalScore = positionScore + coverageScore + diversityScore
+  
+  const details = [
+    `Top results: ${searchResults[0]?.metadata?.header?.slice(0, 30) || 'N/A'}...`,
+    `Coverage: ${coveredKeywords.size}/${questionKeywords.size} keywords`,
+    `Docs: ${docNames.size} different sources`,
+  ].join(' | ')
+  
+  return {
+    score: Math.min(totalScore, 1),
+    details,
+  }
+}
+
+/**
+ * Calculate answer quality score based on answer characteristics
+ */
+function calculateAnswerScore(
+  question: string,
+  answer: string
+): { score: number; isHelpful: boolean; issues: string[] } {
+  const issues: string[] = []
+  const answerLower = answer.toLowerCase()
+  
+  // Check for "can't help" patterns
+  const cantHelpPatterns = [
+    '没有找到', '无法回答', '不知道', '知识库中没有', 
+    '无法提供', '抱歉', '不清楚', '无法确定'
+  ]
+  const hasCantHelp = cantHelpPatterns.some(p => answerLower.includes(p))
+  if (hasCantHelp) {
+    issues.push('AI indicated it cannot help')
+  }
+  
+  // Check answer length
+  const isTooShort = answer.length < 50
+  const isTooLong = answer.length > 3000
+  if (isTooShort) issues.push('Answer too short')
+  if (isTooLong) issues.push('Answer excessively long')
+  
+  // Check for IT-specific helpful content
+  const itKeywords = [
+    '重启', '驱动', '安装', '检查', '更新', '连接', '设置', 
+    '步骤', '解决', '联系', '电话', '打开', '关闭', '点击',
+    '系统', '软件', '网络', '密码', '账号', '权限', '问题'
+  ]
+  const helpfulKeywordCount = itKeywords.filter(k => answerLower.includes(k)).length
+  const hasHelpfulContent = helpfulKeywordCount >= 3
+  
+  // Check for structured content (lists, steps)
+  const hasLists = answer.includes('1.') || answer.includes('1、') || 
+                   answer.includes('第一步') || answer.includes('步骤')
+  const hasBulletPoints = answer.includes('•') || answer.includes('- ') || 
+                          answer.includes('□') || answer.includes('☑')
+  const isStructured = hasLists || hasBulletPoints
+  
+  // Check for question-specific answer (answers the actual question)
+  const questionKeywords = extractKeywords(question)
+  const answerKeywords = extractKeywords(answer)
+  let keywordOverlap = 0
+  questionKeywords.forEach(kw => {
+    if (answerKeywords.has(kw)) keywordOverlap++
+  })
+  const answersQuestion = questionKeywords.size === 0 || 
+                          (keywordOverlap / questionKeywords.size) >= 0.3
+  
+  // Calculate score
+  let score = 0.5 // Base score
+  
+  if (hasCantHelp) score -= 0.3
+  if (!isTooShort) score += 0.15
+  if (hasHelpfulContent) score += 0.15
+  if (isStructured) score += 0.1
+  if (answersQuestion) score += 0.1
+  
+  score = Math.max(0, Math.min(1, score))
+  
+  return {
+    score,
+    isHelpful: score >= 0.6 && !hasCantHelp,
+    issues,
+  }
+}
+
+/**
+ * Calculate keyword coverage score between question and answer
+ */
+function calculateCoverageScore(
+  question: string,
+  answer: string
+): number {
+  const questionKeywords = extractKeywords(question)
+  const answerKeywords = extractKeywords(answer)
+  
+  if (questionKeywords.size === 0) return 0.5
+  
+  let overlap = 0
+  questionKeywords.forEach(kw => {
+    if (answerKeywords.has(kw)) overlap++
+  })
+  
+  return overlap / questionKeywords.size
 }
 
 export async function generateAnswerWithConfidence(
   question: string,
-  context: string[],
+  searchResults: SearchResult[],
   conversationHistory: Array<{role: string; content: string}> = []
 ): Promise<RAGResult> {
-  // If no context, low confidence
-  if (!context || context.length === 0) {
+  // If no results, low confidence
+  if (!searchResults || searchResults.length === 0) {
     const answer = await chatCompletion([
       { role: 'user', content: question },
     ])
@@ -200,40 +382,22 @@ export async function generateAnswerWithConfidence(
       retrievedChunks: [],
       confidenceBreakdown: {
         retrievalScore: 0,
-        consistencyScore: 0.3,
+        answerScore: 0.3,
+        coverageScore: 0,
+        finalConfidence: 0.3,
       },
+      isLowConfidence: true,
+      suggestion: '知识库中未找到相关信息，建议提交人工工单',
     }
   }
 
-  const contextText = context.map((c, i) => `[文档${i + 1}]:\n${c}`).join('\n\n')
-
-  // Confidence calculation based on ChromaDB retrieval quality
-  // ChromaDB returns chunks sorted by relevance, so position matters
-  const lowerQ = question.toLowerCase()
+  // Extract context from search results
+  const contextChunks = searchResults.map(r => r.content)
+  const contextText = contextChunks.map((c, i) => `[文档${i + 1}]:\n${c}`).join('\n\n')
   
-  // Check how many chunks have meaningful overlap with the question
-  let relevantChunks = 0
-  context.forEach((chunk, idx) => {
-    const chunkLower = chunk.toLowerCase()
-    
-    // Check for keyword overlap (at least 2 common words >= 2 chars)
-    const questionWords = new Set(lowerQ.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
-    const chunkWords = new Set(chunkLower.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
-    
-    let overlap = 0
-    questionWords.forEach(w => {
-      if (chunkWords.has(w) && w.length >= 2) overlap++
-    })
-    
-    // Consider chunk relevant if it has at least 20% keyword overlap OR is in top 2 results
-    if (overlap >= questionWords.size * 0.2 || idx < 2) {
-      relevantChunks++
-    }
-  })
-  
-  // Base retrieval score from number of relevant chunks
-  // More relevant chunks = higher confidence
-  const retrievalScore = Math.min(0.3 + (relevantChunks / context.length) * 0.5, 0.9)
+  // Calculate retrieval score (50% weight)
+  const retrievalInfo = calculateRetrievalScore(question, searchResults)
+  const retrievalScore = retrievalInfo.score
 
   // Build messages array with conversation history
   const messages: MiniMaxMessage[] = []
@@ -268,40 +432,50 @@ export async function generateAnswerWithConfidence(
 
   const answer = await chatCompletion(messages)
 
-  // Check answer consistency
-  const answerLower = answer.toLowerCase()
+  // Calculate answer quality score (30% weight)
+  const answerInfo = calculateAnswerScore(question, answer)
+  const answerScore = answerInfo.score
   
-  // Check if answer mentions it can't help (should be rare with good context)
-  const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '抱歉']
-  const isCantHelpAnswer = cantHelpPhrases.some(phrase => answerLower.includes(phrase))
+  // Calculate keyword coverage score (20% weight)
+  const coverageScore = calculateCoverageScore(question, answer)
   
-  // Check if answer is suspiciously short (likely fallback)
-  const isTooShort = answer.length < 30
-  
-  // Simple consistency: if answer addresses common IT issue keywords, it's likely good
-  const itKeywords = ['重启', '驱动', '安装', '检查', '更新', '连接', '设置', '步骤', '解决', '联系']
-  const addressesItIssue = itKeywords.some(kw => answerLower.includes(kw))
-  
-  let consistencyScore = 0.7 // Default good score
-  if (isCantHelpAnswer) {
-    consistencyScore = 0.3 // Very rare case
-  } else if (isTooShort) {
-    consistencyScore = 0.5 // Suspiciously short
-  } else if (!addressesItIssue && answer.length < 100) {
-    consistencyScore = 0.5 // Might be a poor response
-  }
-
   // Final confidence: weighted average
-  const confidence = 0.6 * retrievalScore + 0.4 * consistencyScore
+  // 50% retrieval + 30% answer quality + 20% keyword coverage
+  const finalConfidence = (
+    0.5 * retrievalScore + 
+    0.3 * answerScore + 
+    0.2 * coverageScore
+  )
+  
+  // Determine if low confidence
+  const isLowConfidence = finalConfidence < 0.5 || answerInfo.issues.includes('AI indicated it cannot help')
+  
+  // Generate suggestion based on confidence level
+  let suggestion: string | undefined
+  if (isLowConfidence) {
+    if (answerInfo.issues.includes('AI indicated it cannot help')) {
+      suggestion = '知识库中没有找到相关内容，建议您提交人工工单，由工作人员为您解答。'
+    } else if (answerInfo.issues.includes('Answer too short')) {
+      suggestion = '知识库信息不足以完整回答您的问题，建议提交人工工单获取更详细的帮助。'
+    } else {
+      suggestion = '置信度较低，建议提交人工工单以获得更准确的答案。'
+    }
+  } else if (finalConfidence < 0.7) {
+    suggestion = '如果您觉得回答不够准确或完整，可以选择提交人工工单。'
+  }
 
   return {
     answer,
-    confidence: Math.round(confidence * 100) / 100,
-    retrievedChunks: context,
+    confidence: Math.round(finalConfidence * 100) / 100,
+    retrievedChunks: contextChunks,
     confidenceBreakdown: {
-      retrievalScore,
-      consistencyScore,
+      retrievalScore: Math.round(retrievalScore * 100) / 100,
+      answerScore: Math.round(answerScore * 100) / 100,
+      coverageScore: Math.round(coverageScore * 100) / 100,
+      finalConfidence: Math.round(finalConfidence * 100) / 100,
     },
+    isLowConfidence,
+    suggestion,
   }
 }
 

@@ -334,15 +334,11 @@ export async function searchChunks(
   interface WhereFilter {
     doc_name?: { $eq?: string }
   }
-  const where: WhereFilter | undefined = options?.filter?.doc_name
-    ? { doc_name: { $eq: options.filter!.doc_name } }
-    : undefined
-
+  // Note: filter暂未实现
   // Vector search
   const vectorResults = await col.query({
     queryEmbeddings: [queryEmbedding],
     nResults: nResults * 3, // Get more for reranking
-    where,
     include: ['documents', 'metadatas', 'distances'],
   })
 
