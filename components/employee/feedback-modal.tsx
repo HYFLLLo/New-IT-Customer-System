@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Star, CheckCircle, X } from 'lucide-react'
+import { Star, CheckCircle } from 'lucide-react'
 
 const CURRENT_EMPLOYEE_ID = 'emp-001'
 
@@ -74,19 +74,10 @@ export default function FeedbackModal({ ticketId, open, onOpenChange, onSubmitte
       <DialogContent className="bg-[#12122a] border-[#2a2a4a] max-w-md p-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="bg-gradient-to-r from-[#00f0ff]/10 to-[#00f0ff]/5 border-b border-[#2a2a4a] p-6">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-white text-lg flex items-center gap-2">
-              <Star className="w-5 h-5 text-[#ffcc00]" />
-              满意度评价
-            </DialogTitle>
-            <button
-              onClick={handleClose}
-              className="text-[#8888aa] hover:text-[#00f0ff] transition-colors"
-              disabled={submitting}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <DialogTitle className="text-white text-lg flex items-center gap-2">
+            <Star className="w-5 h-5 text-[#ffcc00]" />
+            满意度评价
+          </DialogTitle>
         </DialogHeader>
 
         {/* Content */}
