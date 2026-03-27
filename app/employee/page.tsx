@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -285,7 +287,41 @@ export default function EmployeePage() {
                     ? 'bg-gradient-to-r from-[#ff00aa] to-[#ff3366] text-white'
                     : 'bg-[#12122a] border border-[#2a2a4a] text-[#e0e0ff]'
                 }`}>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+                  {message.role === 'assistant' ? (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({children}) => <h1 className="text-lg font-bold text-[#00f0ff] mb-2 mt-3">{children}</h1>,
+                        h2: ({children}) => <h2 className="text-base font-semibold text-[#00f0ff] mb-2 mt-3">{children}</h2>,
+                        h3: ({children}) => <h3 className="text-sm font-semibold text-[#00f0ff] mb-1 mt-2">{children}</h3>,
+                        p: ({children}) => <p className="text-sm leading-relaxed mb-2 last:mb-0">{children}</p>,
+                        ul: ({children}) => <ul className="list-disc list-inside text-sm mb-2 space-y-1">{children}</ul>,
+                        ol: ({children}) => <ol className="list-decimal list-inside text-sm mb-2 space-y-1">{children}</ol>,
+                        li: ({children}) => <li className="text-[#e0e0ff]">{children}</li>,
+                        code: ({className, children}) => {
+                          const isInline = !className
+                          return isInline ? (
+                            <code className="bg-[#0a0a0f] text-[#00ff88] px-1.5 py-0.5 rounded text-xs font-mono border border-[#2a2a4a]">{children}</code>
+                          ) : (
+                            <code className="block bg-[#0a0a0f] text-[#00ff88] p-3 rounded-lg text-xs font-mono border border-[#2a2a4a] overflow-x-auto my-2">{children}</code>
+                          )
+                        },
+                        pre: ({children}) => <pre className="bg-[#0a0a0f] p-3 rounded-lg text-xs font-mono border border-[#2a2a4a] overflow-x-auto my-2">{children}</pre>,
+                        strong: ({children}) => <strong className="font-semibold text-white">{children}</strong>,
+                        em: ({children}) => <em className="italic text-[#8888aa]">{children}</em>,
+                        blockquote: ({children}) => <blockquote className="border-l-2 border-[#00f0ff]/50 pl-3 italic text-[#8888aa] my-2">{children}</blockquote>,
+                        a: ({href, children}) => <a href={href} className="text-[#00f0ff] underline hover:text-[#00d0dd]" target="_blank" rel="noopener noreferrer">{children}</a>,
+                        hr: () => <hr className="border-[#2a2a4a] my-3" />,
+                        table: ({children}) => <table className="w-full text-xs border-collapse my-2">{children}</table>,
+                        th: ({children}) => <th className="border border-[#2a2a4a] bg-[#0a0a0f] p-2 text-left text-[#00f0ff]">{children}</th>,
+                        td: ({children}) => <td className="border border-[#2a2a4a] p-2">{children}</td>,
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+                  )}
                   
                   {message.role === 'assistant' && message.confidence !== undefined && (
                     <div className="mt-2 pt-2 border-t border-[#2a2a4a]">
