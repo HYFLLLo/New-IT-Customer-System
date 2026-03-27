@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>IT知识库索引</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+            color: #333;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { 
+            font-size: 28px; 
+            margin-bottom: 10px;
+            color: #1a1a1a;
+        }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+        .icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+        }
+        .icon-1 { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .icon-2 { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .icon-3 { background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); color: white; }
+        .icon-4 { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
+        .icon-5 { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; }
+        .content { flex: 1; }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 8px;
+        }
+        .tag-md { background: #e3f2fd; color: #1976d2; }
+        .tag-pdf { background: #fce4ec; color: #c62828; }
+        .tag-doc { background: #e8f5e9; color: #2e7d32; }
+        .title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #1a1a1a; }
+        .desc { font-size: 14px; color: #666; line-height: 1.5; }
+        .meta { margin-top: 12px; font-size: 12px; color: #999; }
+        .formats { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .format {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .format:hover { opacity: 0.8; }
+        .format-md { background: #e3f2fd; color: #1976d2; }
+        .format-pdf { background: #fce4ec; color: #c62828; }
+        .format-doc { background: #e8f5e9; color: #2e7d32; }
+        .stats {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 24px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+        .stat-num { font-size: 32px; font-weight: 700; }
+        .stat-label { font-size: 13px; opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 IT运维知识库</h1>
+        <p class="subtitle">IT-Helpdesk 智能问答系统 · 知识库文档</p>
+        
+        <div class="stats">
+            <div>
+                <div class="stat-num">5</div>
+                <div class="stat-label">文档数量</div>
+            </div>
+            <div>
+                <div class="stat-num">89,000+</div>
+                <div class="stat-label">覆盖字数</div>
+            </div>
+            <div>
+                <div class="stat-num">98%</div>
+                <div class="stat-label">常见问题覆盖</div>
+            </div>
+            <div>
+                <div class="stat-num">v2024</div>
+                <div class="stat-label">当前版本</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="icon icon-1">👤</div>
+            <div class="content">
+                <div class="title">01 · 员工入职离职IT账号处理指南 <span class="tag tag-md">Markdown</span></div>
+                <p class="desc">详细的新员工入职IT账号开通流程、离职账号处理规范、权限管理检查清单。涵盖企业邮箱、OA系统、门禁卡、业务系统权限等全类别账号操作指引。</p>
+                <div class="meta">IT-HR-001 · v2.1 · 2024年1月更新</div>
+                <div class="formats">
+                    <a href="01-员工入职离职IT账号处理指南.md" class="format format-md">📄 Markdown</a>
+                    <a href="01-员工入职离职IT账号处理指南.html" class="format format-pdf">📕 HTML (可打印为PDF)</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="icon icon-2">🌐</div>
+            <div class="content">
+                <div class="title">02 · 公司网络问题排查手册 <span class="tag tag-md">Markdown</span></div>
+                <p class="desc">完整的网络故障排查流程，包括：无法连接网络、WiFi问题、VPN远程访问、网络安全故障等场景。提供详细命令和解决方案。</p>
+                <div class="meta">IT-NET-002 · v3.0 · 2024年2月更新</div>
+                <div class="formats">
+                    <a href="02-公司网络问题排查手册.md" class="format format-md">📄 Markdown</a>
+                    <a href="02-公司网络问题排查手册.html" class="format format-pdf">📕 HTML (可打印为PDF)</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="icon icon-3">🖨️</div>
+            <div class="content">
+                <div class="title">03 · 打印机故障快速解决指南 <span class="tag tag-md">Markdown</span></div>
+                <p class="desc">HP、佳能、理光、斑马等各品牌打印机的常见故障处理。涵盖卡纸、打印模糊、无法连接、硒鼓更换等问题的详细解决步骤。</p>
+                <div class="meta">IT-PRINT-003 · v2.5 · 2024年1月更新</div>
+                <div class="formats">
+                    <a href="03-打印机故障解决指南.md" class="format format-md">📄 Markdown</a>
+                    <a href="03-打印机故障解决指南.html" class="format format-pdf">📕 HTML (可打印为PDF)</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="icon icon-4">💿</div>
+            <div class="content">
+                <div class="title">04 · 软件安装与授权申请指南 <span class="tag tag-md">Markdown</span></div>
+                <p class="desc">软件分类说明、A/B/C类授权申请流程、常用软件申请指南（Office、Adobe、数据库工具等）。详细说明禁止安装软件及原因、软件使用规范。</p>
+                <div class="meta">IT-SOFT-004 · v2.0 · 2024年1月更新</div>
+                <div class="formats">
+                    <a href="04-软件安装与授权申请指南.md" class="format format-md">📄 Markdown</a>
+                    <a href="04-软件安装与授权申请指南.html" class="format format-pdf">📕 HTML (可打印为PDF)</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="icon icon-5">🔐</div>
+            <div class="content">
+                <div class="title">05 · 账号密码与信息安全手册 <span class="tag tag-md">Markdown</span></div>
+                <p class="desc">密码安全基础、密码设置规范、常见账号密码重置、钓鱼邮件识别与防范、信息安全红线、数据安全与隐私保护。员工信息安全必读手册。</p>
+                <div class="meta">IT-SEC-005 · v3.0 · 2024年2月更新</div>
+                <div class="formats">
+                    <a href="05-账号密码与信息安全手册.md" class="format format-md">📄 Markdown</a>
+                    <a href="05-账号密码与信息安全手册.html" class="format format-pdf">📕 HTML (可打印为PDF)</a>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; padding: 20px; color: #999; font-size: 13px;">
+            <p>📌 提示：点击 HTML 格式文件，使用浏览器打印功能（Ctrl+P）可保存为 PDF</p>
+            <p style="margin-top: 8px;">📌 Markdown 文件可使用 Typora、VS Code 等工具转换为 Word 或 PDF</p>
+        </div>
+    </div>
+</body>
+</html>
