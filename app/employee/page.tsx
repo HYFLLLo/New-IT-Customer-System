@@ -3,15 +3,15 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, ThumbsUp, ThumbsDown, Plus, Ticket, X } from 'lucide-react'
+import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, Plus, Ticket, Cpu, MessageSquare } from 'lucide-react'
 
 const CURRENT_EMPLOYEE_ID = 'emp-001'
 
@@ -37,11 +37,9 @@ export default function EmployeePage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [ticketId, setTicketId] = useState<string | null>(null)
-  const [confidence, setConfidence] = useState<number>(0)
   const [feedbackGiven, setFeedbackGiven] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
   
-  // Modal state
   const [showCreateTicketModal, setShowCreateTicketModal] = useState(false)
   const [createTicketLoading, setCreateTicketLoading] = useState(false)
   const [ticketTitle, setTicketTitle] = useState('')
@@ -83,10 +81,7 @@ export default function EmployeePage() {
           question: userMessage.content,
           employeeId: CURRENT_EMPLOYEE_ID,
           ticketId,
-          conversationHistory: messages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
+          conversationHistory: messages.map(m => ({ role: m.role, content: m.content })),
         }),
       })
 
@@ -94,10 +89,7 @@ export default function EmployeePage() {
 
       if (!res.ok) throw new Error(data.error || '提交失败')
 
-      if (ticketId === null && data.ticketId) {
-        setTicketId(data.ticketId)
-      }
-      setConfidence(data.confidence)
+      if (ticketId === null && data.ticketId) setTicketId(data.ticketId)
 
       if (data.answer) {
         const assistantMessage: Message = {
@@ -146,10 +138,7 @@ export default function EmployeePage() {
       setTicketType('')
       setTicketDescription('')
       
-      // Refresh ticket ID if needed
-      if (data.ticket?.id) {
-        setTicketId(data.ticket.id)
-      }
+      if (data.ticket?.id) setTicketId(data.ticket.id)
     } catch (error) {
       toast.error('创建工单失败')
     } finally {
@@ -196,48 +185,47 @@ export default function EmployeePage() {
   }
 
   const getConfidenceColor = (conf: number) => {
-    if (conf >= 0.8) return 'text-green-600'
-    if (conf >= 0.6) return 'text-yellow-600'
-    return 'text-red-600'
+    if (conf >= 0.8) return 'text-[#00ff88]'
+    if (conf >= 0.6) return 'text-[#ffcc00]'
+    return 'text-[#ff3366]'
   }
 
   const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
   const showFeedback = lastAssistantMessage && !feedbackGiven && lastAssistantMessage.confidence && lastAssistantMessage.confidence >= 0.6
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-10">
+      <header className="bg-[#12122a]/80 backdrop-blur-sm border-b border-[#2a2a4a] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-                <Bot className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-[#00f0ff]/20 to-[#00f0ff]/5 rounded-xl flex items-center justify-center border border-[#00f0ff]/30 cyber-glow">
+                <Bot className="w-5 h-5 text-[#00f0ff]" />
               </div>
               <div>
-                <h1 className="font-semibold text-gray-900">IT智能助手</h1>
-                <p className="text-xs text-gray-500">基于知识库的AI问答</p>
+                <h1 className="font-semibold text-white">IT智能助手</h1>
+                <p className="text-xs text-[#8888aa]">基于知识库的AI问答</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {ticketId && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="bg-[#12122a] border border-[#00f0ff]/30 text-[#00f0ff] text-xs">
                   工单: {ticketId.slice(0, 8)}...
                 </Badge>
               )}
-              {/* Create Ticket Button */}
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={() => setShowCreateTicketModal(true)}
-                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                className="border-[#00f0ff]/30 text-[#00f0ff] hover:bg-[#00f0ff]/10 hover:border-[#00f0ff]"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 创建工单
               </Button>
               <Link href="/employee/history">
-                <Button variant="ghost" size="sm">
-                  <History className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                  <History className="w-5 h-5" />
                 </Button>
               </Link>
             </div>
@@ -246,28 +234,60 @@ export default function EmployeePage() {
       </header>
 
       {/* Chat Messages */}
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-4 overflow-y-auto">
+      <main className={`flex-1 max-w-3xl mx-auto w-full px-4 ${messages.length === 0 ? 'flex flex-col items-center justify-center' : 'py-4 overflow-y-auto'}`}>
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
-              <Bot className="w-10 h-10 text-blue-600" />
+          <>
+            <div className="w-20 h-20 bg-gradient-to-br from-[#00f0ff]/20 to-[#9d00ff]/10 rounded-2xl flex items-center justify-center mb-4 border border-[#00f0ff]/30 cyber-glow">
+              <Bot className="w-10 h-10 text-[#00f0ff]" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">你好，我是IT智能助手</h2>
-            <p className="text-gray-500 max-w-md mb-6">
+            <h2 className="text-xl font-semibold text-white mb-2">你好，我是IT智能助手</h2>
+            <p className="text-[#8888aa] max-w-md mb-6 text-center">
               描述你遇到的IT问题，如电脑蓝屏、网络故障、软件安装等，我会尽力帮你解决
             </p>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-wrap gap-2 justify-center mb-8">
               {['电脑蓝屏了怎么办', '网络连不上', '如何申请软件权限'].map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => setInput(suggestion)}
-                  className="px-4 py-2 bg-white border rounded-full text-sm text-gray-700 hover:bg-gray-50 hover:border-blue-300 transition-colors"
+                  className="px-4 py-2 bg-[#12122a] border border-[#2a2a4a] rounded-full text-sm text-[#8888aa] hover:border-[#00f0ff]/50 hover:text-[#00f0ff] transition-colors"
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
-          </div>
+            {/* Input Area - Centered when empty */}
+            <div className="w-full max-w-xl">
+              <div className="bg-[#12122a]/80 backdrop-blur-sm border border-[#2a2a4a] rounded-2xl p-3">
+                {attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {attachments.map((file, index) => (
+                      <div key={index} className="flex items-center gap-1 px-2 py-1 bg-[#0a0a0f] border border-[#2a2a4a] rounded text-xs text-[#8888aa]">
+                        <Paperclip className="w-3 h-3" />
+                        <span className="max-w-[80px] truncate">{file.name}</span>
+                        <button onClick={() => removeAttachment(index)} className="text-[#ff3366] hover:text-[#ff6688]">×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={handleSubmit} className="flex gap-2">
+                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
+                  <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                    <Paperclip className="w-5 h-5" />
+                  </Button>
+                  <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="输入你的问题..."
+                    className="flex-1 bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] focus:border-[#00f0ff]/50 focus:ring-[#00f0ff]/20"
+                    disabled={loading}
+                  />
+                  <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90 cyber-glow">
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                  </Button>
+                </form>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="space-y-4">
             {messages.map((message) => (
@@ -276,33 +296,41 @@ export default function EmployeePage() {
                 className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
               >
                 <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
-                  message.role === 'user' ? 'bg-blue-600' : 'bg-gray-200'
+                  message.role === 'user' 
+                    ? 'bg-gradient-to-br from-[#ff00aa] to-[#ff3366]' 
+                    : 'bg-gradient-to-br from-[#00f0ff]/20 to-[#00f0ff]/5 border border-[#00f0ff]/30'
                 }`}>
                   {message.role === 'user' ? (
                     <User className="w-4 h-4 text-white" />
                   ) : (
-                    <Bot className="w-4 h-4 text-gray-600" />
+                    <Bot className="w-4 h-4 text-[#00f0ff]" />
                   )}
                 </div>
                 <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${
                   message.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-sm'
-                    : 'bg-white border text-gray-800 rounded-tl-sm'
+                    ? 'bg-gradient-to-r from-[#ff00aa] to-[#ff3366] text-white'
+                    : 'bg-[#12122a] border border-[#2a2a4a] text-[#e0e0ff]'
                 }`}>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+                  
                   {message.role === 'assistant' && message.confidence !== undefined && (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
+                    <div className="mt-2 pt-2 border-t border-[#2a2a4a]">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">置信度</span>
+                        <Cpu className="w-3 h-3 text-[#8888aa]" />
+                        <span className="text-xs text-[#8888aa]">置信度</span>
                         <span className={`text-sm font-semibold ${getConfidenceColor(message.confidence)}`}>
                           {(message.confidence * 100).toFixed(0)}%
                         </span>
                       </div>
-                      <Progress value={message.confidence * 100} className="h-1 mt-1" />
+                      <Progress 
+                        value={message.confidence * 100} 
+                        className="h-1 mt-1 bg-[#2a2a4a]"
+                      />
                     </div>
                   )}
+                  
                   <p className={`text-xs mt-1 ${
-                    message.role === 'user' ? 'text-blue-200' : 'text-gray-600'
+                    message.role === 'user' ? 'text-white/60' : 'text-[#8888aa]'
                   }`}>
                     {formatTime(message.createdAt)}
                   </p>
@@ -312,11 +340,11 @@ export default function EmployeePage() {
 
             {loading && (
               <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-gray-600" />
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00f0ff]/20 to-[#00f0ff]/5 border border-[#00f0ff]/30 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-[#00f0ff]" />
                 </div>
-                <div className="bg-white border rounded-2xl rounded-tl-sm px-4 py-3">
-                  <div className="flex items-center gap-2 text-gray-500">
+                <div className="bg-[#12122a] border border-[#2a2a4a] rounded-2xl px-4 py-3">
+                  <div className="flex items-center gap-2 text-[#00f0ff]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span className="text-sm">AI思考中...</span>
                   </div>
@@ -326,23 +354,23 @@ export default function EmployeePage() {
 
             {showFeedback && (
               <div className="flex items-center justify-center gap-3 py-4">
-                <span className="text-sm text-gray-500">问题解决了吗？</span>
+                <span className="text-sm text-[#8888aa]">问题解决了吗？</span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleFeedback(true)}
-                  className="text-green-600 border-green-200 hover:bg-green-50"
+                  className="border-[#00ff88]/30 text-[#00ff88] hover:bg-[#00ff88]/10 hover:border-[#00ff88]"
                 >
-                  <ThumbsUp className="w-4 h-4 mr-1" />
+                  <CheckCircle className="w-4 h-4 mr-1" />
                   已解决
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleFeedback(false)}
-                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                  className="border-[#ff3366]/30 text-[#ff3366] hover:bg-[#ff3366]/10 hover:border-[#ff3366]"
                 >
-                  <ThumbsDown className="w-4 h-4 mr-1" />
+                  <MessageSquare className="w-4 h-4 mr-1" />
                   未解决
                 </Button>
               </div>
@@ -350,7 +378,7 @@ export default function EmployeePage() {
 
             {feedbackGiven && (
               <div className="text-center py-2">
-                <Badge variant="success" className="bg-green-100 text-green-700">
+                <Badge variant="success" className="bg-[#00ff88]/10 border border-[#00ff88]/30 text-[#00ff88]">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   感谢您的反馈
                 </Badge>
@@ -362,27 +390,68 @@ export default function EmployeePage() {
         )}
       </main>
 
+      {/* Input Area - Only show when there are messages */}
+      {messages.length > 0 && (
+        <footer className="bg-[#12122a]/80 backdrop-blur-sm border-t border-[#2a2a4a]">
+          <div className="max-w-3xl mx-auto px-4 py-3">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {attachments.map((file, index) => (
+                  <div key={index} className="flex items-center gap-1 px-2 py-1 bg-[#0a0a0f] border border-[#2a2a4a] rounded text-xs text-[#8888aa]">
+                    <Paperclip className="w-3 h-3" />
+                    <span className="max-w-[80px] truncate">{file.name}</span>
+                    <button onClick={() => removeAttachment(index)} className="text-[#ff3366] hover:text-[#ff6688]">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="flex gap-2">
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
+              <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                <Paperclip className="w-5 h-5" />
+              </Button>
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="输入你的问题..."
+                className="flex-1 bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] focus:border-[#00f0ff]/50 focus:ring-[#00f0ff]/20"
+                disabled={loading}
+              />
+              <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90 cyber-glow">
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              </Button>
+            </form>
+          </div>
+        </footer>
+      )}
+
       {/* Input Area */}
-      <footer className="bg-white border-t sticky bottom-0">
+      <footer className="bg-[#12122a]/80 backdrop-blur-sm border-t border-[#2a2a4a] sticky bottom-0">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {attachments.map((file, index) => (
-                <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                <div key={index} className="flex items-center gap-1 px-2 py-1 bg-[#0a0a0f] border border-[#2a2a4a] rounded text-xs text-[#8888aa]">
                   <Paperclip className="w-3 h-3" />
                   <span className="max-w-[80px] truncate">{file.name}</span>
-                  <button onClick={() => removeAttachment(index)} className="text-gray-400 hover:text-red-500">×</button>
+                  <button onClick={() => removeAttachment(index)} className="text-[#ff3366] hover:text-[#ff6688]">×</button>
                 </div>
               ))}
             </div>
           )}
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
-            <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+            <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
               <Paperclip className="w-5 h-5" />
             </Button>
-            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="输入你的问题..." className="flex-1" disabled={loading} />
-            <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-blue-600 hover:bg-blue-700">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="输入你的问题..."
+              className="flex-1 bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] focus:border-[#00f0ff]/50 focus:ring-[#00f0ff]/20"
+              disabled={loading}
+            />
+            <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90 cyber-glow">
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </Button>
           </form>
@@ -391,27 +460,27 @@ export default function EmployeePage() {
 
       {/* Create Ticket Modal */}
       <Dialog open={showCreateTicketModal} onOpenChange={setShowCreateTicketModal}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="bg-[#12122a] border border-[#00f0ff]/30 sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Ticket className="w-5 h-5 text-blue-600" />
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#00f0ff]/20 to-[#00f0ff]/5 rounded-xl flex items-center justify-center border border-[#00f0ff]/30">
+                <Ticket className="w-5 h-5 text-[#00f0ff]" />
               </div>
               创建工单
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-[#8888aa]">
               填写以下信息，提交后坐席人员会尽快处理
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="ticket-type">问题类型 *</Label>
+              <Label htmlFor="ticket-type" className="text-[#e0e0ff]">问题类型 *</Label>
               <select
                 id="ticket-type"
                 value={ticketType}
                 onChange={(e) => setTicketType(e.target.value)}
-                className="w-full h-10 px-3 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full h-10 px-3 bg-[#0a0a0f] border border-[#2a2a4a] rounded-md text-sm text-[#e0e0ff] focus:outline-none focus:border-[#00f0ff]/50"
                 required
               >
                 <option value="">请选择问题类型</option>
@@ -422,45 +491,42 @@ export default function EmployeePage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ticket-title">问题标题 *</Label>
+              <Label htmlFor="ticket-title" className="text-[#e0e0ff]">问题标题 *</Label>
               <Input
                 id="ticket-title"
                 value={ticketTitle}
                 onChange={(e) => setTicketTitle(e.target.value)}
                 placeholder="简要描述问题"
+                className="bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688]"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ticket-desc">问题详情 *</Label>
+              <Label htmlFor="ticket-desc" className="text-[#e0e0ff]">问题详情 *</Label>
               <Textarea
                 id="ticket-desc"
                 value={ticketDescription}
                 onChange={(e) => setTicketDescription(e.target.value)}
-                placeholder="请详细描述您遇到的问题，包括：&#10;- 问题现象&#10;- 发生时间&#10;- 已尝试的解决方法"
+                placeholder="请详细描述您遇到的问题..."
                 rows={5}
+                className="bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] resize-none"
                 required
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateTicketModal(false)}>
+            <Button variant="outline" onClick={() => setShowCreateTicketModal(false)} className="border-[#2a2a4a] text-[#8888aa] hover:bg-[#1a1a2e]">
               取消
             </Button>
-            <Button onClick={handleCreateTicket} disabled={createTicketLoading} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleCreateTicket} disabled={createTicketLoading} className="bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90">
               {createTicketLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  创建中...
-                </>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                <>
-                  <Ticket className="w-4 h-4 mr-2" />
-                  提交工单
-                </>
+                <Ticket className="w-4 h-4 mr-2" />
               )}
+              提交工单
             </Button>
           </DialogFooter>
         </DialogContent>
