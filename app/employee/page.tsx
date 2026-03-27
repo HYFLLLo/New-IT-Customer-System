@@ -257,6 +257,12 @@ export default function EmployeePage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Link href="/">
+                <Button variant="ghost" size="sm" className="text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                  <Bot className="w-4 h-4 mr-1" />
+                  返回主页
+                </Button>
+              </Link>
               {ticketId && (
                 <Badge variant="secondary" className="bg-[#12122a] border border-[#00f0ff]/30 text-[#00f0ff] text-xs">
                   工单: {ticketId.slice(0, 8)}...
