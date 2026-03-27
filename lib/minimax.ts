@@ -137,7 +137,13 @@ export async function embedText(text: string): Promise<number[]> {
     if (response.ok) {
       const data = await response.json()
       if (data.embedding && Array.isArray(data.embedding)) {
-        return data.embedding
+        // Normalize the embedding (L2 norm) for better cosine similarity
+        const embedding = data.embedding
+        const magnitude = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0))
+        if (magnitude > 0) {
+          return embedding.map(v => v / magnitude)
+        }
+        return embedding
       }
     }
   } catch {
