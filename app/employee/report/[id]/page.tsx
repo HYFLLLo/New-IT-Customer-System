@@ -282,13 +282,23 @@ export default function ReportPage() {
       {/* Header */}
       <header className="bg-[#12122a]/80 backdrop-blur-sm border-b border-[#2a2a4a] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4">
-          <Link 
-            href="/employee/history" 
-            className="text-[#8888aa] hover:text-[#00f0ff] text-sm inline-flex items-center gap-1 mb-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            返回
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/employee/history" 
+              className="text-[#8888aa] hover:text-[#00f0ff] text-sm inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回列表
+            </Link>
+            <span className="text-[#8888aa]">|</span>
+            <Link 
+              href="/employee" 
+              className="text-[#8888aa] hover:text-[#00f0ff] text-sm inline-flex items-center gap-1"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              返回主页
+            </Link>
+          </div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-[#ff00aa]/20 to-[#ff00aa]/5 rounded-xl flex items-center justify-center border border-[#ff00aa]/30 cyber-glow-pink">
               <Bot className="w-5 h-5 text-[#ff00aa]" />

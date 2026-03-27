@@ -121,7 +121,13 @@ export default function TicketDetailPage() {
               <Link href="/employee/history">
                 <Button variant="ghost" size="sm" className="text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
                   <ArrowLeft className="w-4 h-4 mr-2" />
-                  返回
+                  返回列表
+                </Button>
+              </Link>
+              <Link href="/employee">
+                <Button variant="ghost" size="sm" className="text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  返回主页
                 </Button>
               </Link>
               <div>
