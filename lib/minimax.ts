@@ -201,43 +201,33 @@ export async function generateAnswerWithConfidence(
 
   const contextText = context.map((c, i) => `[文档${i + 1}]:\n${c}`).join('\n\n')
 
-  // Calculate REAL confidence based on context relevance
-  // Score each chunk by keyword overlap with question
+  // Confidence calculation based on ChromaDB retrieval quality
+  // ChromaDB returns chunks sorted by relevance, so position matters
   const lowerQ = question.toLowerCase()
-  const questionKeywords = new Set(lowerQ.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
   
-  let totalRelevanceScore = 0
-  context.forEach(chunk => {
+  // Check how many chunks have meaningful overlap with the question
+  let relevantChunks = 0
+  context.forEach((chunk, idx) => {
     const chunkLower = chunk.toLowerCase()
-    const chunkKeywords = new Set(chunkLower.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
     
-    // Calculate keyword overlap
+    // Check for keyword overlap (at least 2 common words >= 2 chars)
+    const questionWords = new Set(lowerQ.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
+    const chunkWords = new Set(chunkLower.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
+    
     let overlap = 0
-    questionKeywords.forEach(kw => {
-      if (chunkKeywords.has(kw) && kw.length > 1) {
-        overlap++
-      }
+    questionWords.forEach(w => {
+      if (chunkWords.has(w) && w.length >= 2) overlap++
     })
     
-    // Relevance = overlap / total question keywords, normalized
-    const relevance = questionKeywords.size > 0 ? overlap / questionKeywords.size : 0
-    totalRelevanceScore += relevance
+    // Consider chunk relevant if it has at least 20% keyword overlap OR is in top 2 results
+    if (overlap >= questionWords.size * 0.2 || idx < 2) {
+      relevantChunks++
+    }
   })
   
-  // Average relevance across all chunks
-  const avgRelevance = totalRelevanceScore / context.length
-  
-  // Base retrieval score from ChromaDB results (already sorted by relevance)
-  // First result gets highest weight
-  let retrievalScore = 0
-  context.forEach((_, idx) => {
-    // Geometric decay: first chunk = 1.0, second = 0.5, third = 0.25...
-    const weight = Math.pow(0.5, idx)
-    retrievalScore += weight * avgRelevance * 2 // Scale up to 0-1 range roughly
-  })
-  
-  // Normalize retrieval score to reasonable range
-  retrievalScore = Math.min(Math.max(retrievalScore, 0.1), 0.95)
+  // Base retrieval score from number of relevant chunks
+  // More relevant chunks = higher confidence
+  const retrievalScore = Math.min(0.3 + (relevantChunks / context.length) * 0.5, 0.9)
 
   // Build messages array with conversation history
   const messages: MiniMaxMessage[] = []
@@ -272,41 +262,31 @@ export async function generateAnswerWithConfidence(
 
   const answer = await chatCompletion(messages)
 
-  // Check answer consistency: does it actually address the question?
+  // Check answer consistency
   const answerLower = answer.toLowerCase()
   
-  // Extract key phrases from question (longer keywords = more specific)
-  const questionKeyPhrases = lowerQ.split(/[\s,.!?，。！？]+/)
-    .filter(phrase => phrase.length >= 3)
-    .slice(0, 5) // Top 5 most important phrases
-  
-  // Check if answer addresses question keywords
-  let addressedCount = 0
-  questionKeyPhrases.forEach(phrase => {
-    if (answerLower.includes(phrase)) {
-      addressedCount++
-    }
-  })
-  
-  // Check if answer mentions it can't help (low confidence signal)
-  const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '无法提供', '抱歉']
+  // Check if answer mentions it can't help (should be rare with good context)
+  const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '抱歉']
   const isCantHelpAnswer = cantHelpPhrases.some(phrase => answerLower.includes(phrase))
   
-  // Check if answer is too short (might be fallback)
-  const isTooShort = answer.length < 20
+  // Check if answer is suspiciously short (likely fallback)
+  const isTooShort = answer.length < 30
   
-  // Calculate consistency score
-  let consistencyScore = 0.5
+  // Simple consistency: if answer addresses common IT issue keywords, it's likely good
+  const itKeywords = ['重启', '驱动', '安装', '检查', '更新', '连接', '设置', '步骤', '解决', '联系']
+  const addressesItIssue = itKeywords.some(kw => answerLower.includes(kw))
+  
+  let consistencyScore = 0.7 // Default good score
   if (isCantHelpAnswer) {
-    consistencyScore = 0.2 // Very low - AI explicitly says it can't help
+    consistencyScore = 0.3 // Very rare case
   } else if (isTooShort) {
-    consistencyScore = 0.4 // Low - probably a fallback response
-  } else if (questionKeyPhrases.length > 0) {
-    consistencyScore = 0.4 + (addressedCount / questionKeyPhrases.length) * 0.5
+    consistencyScore = 0.5 // Suspiciously short
+  } else if (!addressesItIssue && answer.length < 100) {
+    consistencyScore = 0.5 // Might be a poor response
   }
 
   // Final confidence: weighted average
-  const confidence = 0.7 * retrievalScore + 0.3 * consistencyScore
+  const confidence = 0.6 * retrievalScore + 0.4 * consistencyScore
 
   return {
     answer,
