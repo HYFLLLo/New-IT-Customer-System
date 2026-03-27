@@ -3,60 +3,56 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { ArrowLeft, FileText, CheckCircle, Phone, Loader2, Bot } from 'lucide-react'
 
 interface Report {
   id: string
   title: string
   content: string
+  generatedBy: string
   createdAt: string
   ticket: {
     id: string
     title: string
-    employee: { name: string }
+    description: string
+    employee: { id: string; name: string }
   }
+  createdBy?: { id: string; name: string }
 }
 
 export default function ReportPage() {
   const params = useParams()
+  const reportId = params.id as string
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchReport()
-  }, [params.id])
+  }, [reportId])
 
   const fetchReport = async () => {
     try {
-      const res = await fetch(`/api/feedback?ticketId=${params.id}`)
-      // For demo, we'll use mock data since there's no dedicated report endpoint
-      setReport({
-        id: params.id as string,
-        title: 'IT问题质检报告',
-        content: `【问题描述】
-        电脑蓝屏问题
+      setLoading(true)
+      const res = await fetch(`/api/agent/reports/${reportId}`)
+      
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError('报告不存在')
+        } else {
+          throw new Error('Failed to fetch')
+        }
+        return
+      }
 
-        【解决步骤】
-        1. 首先记录蓝屏错误代码（通常是 0x000000xx 格式）
-        2. 重启电脑，进入安全模式
-        3. 检查最近是否安装了新软件或驱动
-        4. 如果有，请卸载后重新安装稳定版本驱动
-        5. 运行 Windows 内存诊断工具检查 RAM
-        6. 检查硬盘健康状态（使用 CrystalDiskInfo）
-        7. 如问题依旧，请联系 IT 部门安排上门检测
-
-        【注意事项】
-        - 蓝屏代码是诊断的关键，请务必记录
-        - 避免使用来历不明的驱动程序
-        - 定期更新系统补丁`,
-        createdAt: new Date().toISOString(),
-        ticket: {
-          id: params.id as string,
-          title: '电脑蓝屏问题',
-          employee: { name: '张三' },
-        },
-      })
-    } catch (error) {
-      console.error('Error:', error)
+      const data = await res.json()
+      setReport(data.report)
+    } catch (err) {
+      console.error('Error:', err)
+      setError('加载失败')
     } finally {
       setLoading(false)
     }
@@ -64,64 +60,136 @@ export default function ReportPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+      <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#00f0ff]" />
       </div>
     )
   }
 
-  if (!report) {
+  if (error || !report) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500 mb-4">报告不存在</p>
-          <Link href="/employee/history" className="text-blue-600 hover:underline">
-            返回历史记录
-          </Link>
-        </div>
+      <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg flex items-center justify-center">
+        <Card className="bg-[#12122a]/80 border-[#2a2a4a] max-w-md">
+          <CardContent className="text-center py-12">
+            <FileText className="w-12 h-12 mx-auto text-[#8888aa] mb-4 opacity-50" />
+            <p className="text-[#8888aa] mb-4">{error || '报告不存在'}</p>
+            <Link href="/employee/history">
+              <Button variant="outline" className="border-[#00f0ff]/30 text-[#00f0ff] hover:bg-[#00f0ff]/10">
+                返回历史记录
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
+
+  // 解析报告内容，提取标题部分
+  const contentLines = report.content.split('\n')
+  const titleMatch = report.content.match(/【([^】]+)】/g)
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
+    <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg">
+      {/* Header */}
+      <header className="bg-[#12122a]/80 backdrop-blur-sm border-b border-[#2a2a4a] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4">
-          <Link href="/employee/history" className="text-blue-600 hover:underline text-sm">
-            ← 返回
+          <Link 
+            href="/employee/history" 
+            className="text-[#8888aa] hover:text-[#00f0ff] text-sm inline-flex items-center gap-1 mb-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            返回
           </Link>
-          <h1 className="text-xl font-semibold text-gray-900 mt-1">{report.title}</h1>
-          <p className="text-sm text-gray-500">
-            工单: {report.ticket.title} · {new Date(report.createdAt).toLocaleString('zh-CN')}
-          </p>
-        </div>
-      </header>
-
-      <main className="max-w-3xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-sm p-8">
-          <div className="prose max-w-none">
-            <p className="text-gray-700 whitespace-pre-wrap">{report.content}</p>
-          </div>
-
-          {/* Contact Button */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-gray-600 mb-4">问题是否解决了？</p>
-            <div className="flex gap-4">
-              <Link
-                href={`/employee/feedback/${report.ticket.id}`}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                ✓ 问题已解决
-              </Link>
-              <button
-                onClick={() => alert('工作人员将尽快联系您，请保持电话畅通')}
-                className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-              >
-                📞 联系工作人员
-              </button>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#ff00aa]/20 to-[#ff00aa]/5 rounded-xl flex items-center justify-center border border-[#ff00aa]/30 cyber-glow-pink">
+              <Bot className="w-5 h-5 text-[#ff00aa]" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-white">{report.title}</h1>
+              <p className="text-sm text-[#8888aa]">
+                工单: {report.ticket.title} · {new Date(report.createdAt).toLocaleString('zh-CN')}
+              </p>
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        {/* Report Meta */}
+        <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
+          <CardContent className="pt-4">
+            <div className="flex flex-wrap gap-4 text-sm text-[#8888aa]">
+              <div className="flex items-center gap-2">
+                <span className="text-[#8888aa]">生成方式:</span>
+                <Badge className={report.generatedBy === 'AI' 
+                  ? 'bg-[#ff00aa]/10 border-[#ff00aa]/30 text-[#ff00aa]' 
+                  : 'bg-[#00f0ff]/10 border-[#00f0ff]/30 text-[#00f0ff]'
+                }>
+                  {report.generatedBy === 'AI' ? 'AI 生成' : '人工生成'}
+                </Badge>
+              </div>
+              {report.createdBy && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[#8888aa]">生成人:</span>
+                  <span className="text-[#ccccdd]">{report.createdBy.name}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Original Problem */}
+        <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-white text-base flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#00f0ff]" />
+              原始问题
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-[#ccccdd]">{report.ticket.description}</p>
+          </CardContent>
+        </Card>
+
+        {/* Report Content */}
+        <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-white text-base flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#ff00aa]" />
+              质检报告
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-invert max-w-none">
+              <pre className="whitespace-pre-wrap text-[#ccccdd] font-sans bg-[#0a0a0f] border border-[#2a2a4a] rounded-lg p-4">
+                {report.content}
+              </pre>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Action Buttons */}
+        <Card className="bg-[#12122a]/80 border-[#2a2a4a]">
+          <CardContent className="pt-4">
+            <p className="text-[#8888aa] mb-4 text-sm">问题是否解决了？</p>
+            <div className="flex flex-wrap gap-4">
+              <Link href={`/employee/feedback/${report.ticket.id}`}>
+                <Button className="bg-gradient-to-r from-[#00ff88] to-[#00cc66] text-[#0a0a0f] hover:opacity-90">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  问题已解决
+                </Button>
+              </Link>
+              <Button
+                onClick={() => alert('工作人员将尽快联系您，请保持电话畅通')}
+                className="bg-gradient-to-r from-[#ff3366] to-[#ff00aa] text-white hover:opacity-90"
+              >
+                <Phone className="w-4 h-4 mr-2" />
+                联系工作人员
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   )
