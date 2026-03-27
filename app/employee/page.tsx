@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, Plus, Ticket, Cpu, MessageSquare } from 'lucide-react'
+import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, Plus, Ticket, Cpu, MessageSquare, Bell, Mail } from 'lucide-react'
 
 const CURRENT_EMPLOYEE_ID = 'emp-001'
 
@@ -22,6 +22,15 @@ interface Message {
   content: string
   confidence?: number
   createdAt: string
+}
+
+interface AgentMessage {
+  id: string
+  content: string
+  ticketId: string
+  ticketTitle: string
+  createdAt: string
+  read: boolean
 }
 
 const problemTypes = [
@@ -48,6 +57,11 @@ export default function EmployeePage() {
   const [ticketType, setTicketType] = useState('')
   const [ticketDescription, setTicketDescription] = useState('')
   
+  // Messages dialog state
+  const [showMessagesDialog, setShowMessagesDialog] = useState(false)
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
+  const [loadingAgentMessages, setLoadingAgentMessages] = useState(false)
+  
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -59,6 +73,25 @@ export default function EmployeePage() {
     setMounted(true)
     scrollToBottom()
   }, [messages])
+
+  // Fetch agent messages
+  const fetchAgentMessages = async () => {
+    setLoadingAgentMessages(true)
+    try {
+      const res = await fetch(`/api/employee/messages?employeeId=${CURRENT_EMPLOYEE_ID}`)
+      const data = await res.json()
+      setAgentMessages(data.messages || [])
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+    } finally {
+      setLoadingAgentMessages(false)
+    }
+  }
+
+  const handleOpenMessages = () => {
+    fetchAgentMessages()
+    setShowMessagesDialog(true)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -243,6 +276,14 @@ export default function EmployeePage() {
                   <History className="w-5 h-5" />
                 </Button>
               </Link>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={handleOpenMessages}
+                className="text-[#8888aa] hover:text-[#ff00aa] hover:bg-[#ff00aa]/10 relative"
+              >
+                <Bell className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         </div>
@@ -515,6 +556,53 @@ export default function EmployeePage() {
               提交工单
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Messages Dialog */}
+      <Dialog open={showMessagesDialog} onOpenChange={setShowMessagesDialog}>
+        <DialogContent className="bg-[#12122a] border border-[#00f0ff]/30 sm:max-w-[500px] max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-white">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#ff00aa]/20 to-[#ff00aa]/5 rounded-xl flex items-center justify-center border border-[#ff00aa]/30">
+                <Mail className="w-5 h-5 text-[#ff00aa]" />
+              </div>
+              收到的消息
+            </DialogTitle>
+            <DialogDescription className="text-[#8888aa]">
+              坐席人员发送给您的消息
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-y-auto py-4">
+            {loadingAgentMessages ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-[#00f0ff]" />
+              </div>
+            ) : agentMessages.length === 0 ? (
+              <div className="text-center py-8 text-[#8888aa]">
+                <Mail className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p className="text-sm">暂无消息</p>
+                <p className="text-xs mt-1">坐席人员发送的消息将在此处显示</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {agentMessages.map((msg) => (
+                  <div key={msg.id} className="bg-[#0a0a0f] rounded-xl border border-[#2a2a4a] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Badge variant="secondary" className="bg-[#00f0ff]/10 border-[#00f0ff]/30 text-[#00f0ff] text-xs">
+                        工单: {msg.ticketTitle.slice(0, 20)}{msg.ticketTitle.length > 20 ? '...' : ''}
+                      </Badge>
+                      <span className="text-xs text-[#8888aa]">
+                        {new Date(msg.createdAt).toLocaleString('zh-CN')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#e0e0ff] whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
