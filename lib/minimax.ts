@@ -201,14 +201,43 @@ export async function generateAnswerWithConfidence(
 
   const contextText = context.map((c, i) => `[文档${i + 1}]:\n${c}`).join('\n\n')
 
-  // Calculate confidence based on context relevance
+  // Calculate REAL confidence based on context relevance
+  // Score each chunk by keyword overlap with question
   const lowerQ = question.toLowerCase()
-  const hasKnownPattern = 
-    lowerQ.includes('蓝屏') || lowerQ.includes('死机') ||
-    lowerQ.includes('网络') || lowerQ.includes('连不上') ||
-    lowerQ.includes('打印') || lowerQ.includes('权限')
+  const questionKeywords = new Set(lowerQ.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
   
-  const retrievalScore = hasKnownPattern ? 0.8 : 0.5
+  let totalRelevanceScore = 0
+  context.forEach(chunk => {
+    const chunkLower = chunk.toLowerCase()
+    const chunkKeywords = new Set(chunkLower.match(/[\w\u4e00-\u9fa5]{2,}/g) || [])
+    
+    // Calculate keyword overlap
+    let overlap = 0
+    questionKeywords.forEach(kw => {
+      if (chunkKeywords.has(kw) && kw.length > 1) {
+        overlap++
+      }
+    })
+    
+    // Relevance = overlap / total question keywords, normalized
+    const relevance = questionKeywords.size > 0 ? overlap / questionKeywords.size : 0
+    totalRelevanceScore += relevance
+  })
+  
+  // Average relevance across all chunks
+  const avgRelevance = totalRelevanceScore / context.length
+  
+  // Base retrieval score from ChromaDB results (already sorted by relevance)
+  // First result gets highest weight
+  let retrievalScore = 0
+  context.forEach((_, idx) => {
+    // Geometric decay: first chunk = 1.0, second = 0.5, third = 0.25...
+    const weight = Math.pow(0.5, idx)
+    retrievalScore += weight * avgRelevance * 2 // Scale up to 0-1 range roughly
+  })
+  
+  // Normalize retrieval score to reasonable range
+  retrievalScore = Math.min(Math.max(retrievalScore, 0.1), 0.95)
 
   // Build messages array with conversation history
   const messages: MiniMaxMessage[] = []
@@ -243,14 +272,41 @@ export async function generateAnswerWithConfidence(
 
   const answer = await chatCompletion(messages)
 
-  // Simple consistency check
+  // Check answer consistency: does it actually address the question?
   const answerLower = answer.toLowerCase()
-  const contextKeywords = ['步骤', '解决', '检查', '重启', '联系', '申请', '安装', '驱动']
-  const hasContextKeywords = contextKeywords.some(kw => answerLower.includes(kw))
-  const consistencyScore = hasContextKeywords ? 0.8 : 0.5
+  
+  // Extract key phrases from question (longer keywords = more specific)
+  const questionKeyPhrases = lowerQ.split(/[\s,.!?，。！？]+/)
+    .filter(phrase => phrase.length >= 3)
+    .slice(0, 5) // Top 5 most important phrases
+  
+  // Check if answer addresses question keywords
+  let addressedCount = 0
+  questionKeyPhrases.forEach(phrase => {
+    if (answerLower.includes(phrase)) {
+      addressedCount++
+    }
+  })
+  
+  // Check if answer mentions it can't help (low confidence signal)
+  const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '无法提供', '抱歉']
+  const isCantHelpAnswer = cantHelpPhrases.some(phrase => answerLower.includes(phrase))
+  
+  // Check if answer is too short (might be fallback)
+  const isTooShort = answer.length < 20
+  
+  // Calculate consistency score
+  let consistencyScore = 0.5
+  if (isCantHelpAnswer) {
+    consistencyScore = 0.2 // Very low - AI explicitly says it can't help
+  } else if (isTooShort) {
+    consistencyScore = 0.4 // Low - probably a fallback response
+  } else if (questionKeyPhrases.length > 0) {
+    consistencyScore = 0.4 + (addressedCount / questionKeyPhrases.length) * 0.5
+  }
 
   // Final confidence: weighted average
-  const confidence = 0.6 * retrievalScore + 0.4 * consistencyScore
+  const confidence = 0.7 * retrievalScore + 0.3 * consistencyScore
 
   return {
     answer,
