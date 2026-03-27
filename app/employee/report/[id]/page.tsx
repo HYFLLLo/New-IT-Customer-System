@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, FileText, CheckCircle, Phone, Loader2, Bot } from 'lucide-react'
+import { ArrowLeft, FileText, CheckCircle, Phone, Loader2, Bot, AlertCircle, Wrench, Lightbulb, Info } from 'lucide-react'
 
 interface Report {
   id: string
@@ -21,6 +21,42 @@ interface Report {
     employee: { id: string; name: string }
   }
   createdBy?: { id: string; name: string }
+}
+
+// 解析报告内容为结构化数据
+function parseReportContent(content: string): { sections: Array<{ title: string; icon: any; items: string[]; text?: string }> } {
+  const sections: Array<{ title: string; icon: any; items: string[]; text?: string }> = []
+  
+  // 按 【】 分割内容
+  const parts = content.split(/【([^】]+)】/).filter(Boolean)
+  
+  const iconMap: Record<string, any> = {
+    '问题描述': AlertCircle,
+    '解决步骤': Wrench,
+    '处理方案': Wrench,
+    '注意事项': Lightbulb,
+    '建议': Lightbulb,
+    '诊断': Info,
+    '结论': CheckCircle,
+  }
+  
+  for (let i = 0; i < parts.length; i += 2) {
+    const title = parts[i].trim()
+    const body = parts[i + 1] || ''
+    
+    // 判断是列表还是段落
+    const lines = body.split('\n').map((l: string) => l.trim()).filter(Boolean)
+    const isList = lines.every((l: string) => /^\d+[.、]/.test(l) || l.startsWith('-') || l.startsWith('•'))
+    
+    sections.push({
+      title,
+      icon: iconMap[title] || FileText,
+      items: isList ? lines : [],
+      text: !isList ? body.trim() : undefined,
+    })
+  }
+  
+  return { sections }
 }
 
 export default function ReportPage() {
@@ -84,9 +120,7 @@ export default function ReportPage() {
     )
   }
 
-  // 解析报告内容，提取标题部分
-  const contentLines = report.content.split('\n')
-  const titleMatch = report.content.match(/【([^】]+)】/g)
+  const { sections } = parseReportContent(report.content)
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg">
@@ -143,7 +177,7 @@ export default function ReportPage() {
         <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-white text-base flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#00f0ff]" />
+              <AlertCircle className="w-4 h-4 text-[#ff3366]" />
               原始问题
             </CardTitle>
           </CardHeader>
@@ -152,22 +186,55 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
-        {/* Report Content */}
-        <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-white text-base flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#ff00aa]" />
-              质检报告
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-invert max-w-none">
+        {/* Report Content - Structured Rendering */}
+        {sections.length > 0 ? (
+          <div className="space-y-4 mb-6">
+            {sections.map((section, idx) => {
+              const Icon = section.icon
+              return (
+                <Card key={idx} className="bg-[#12122a]/80 border-[#2a2a4a]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-white text-base flex items-center gap-2">
+                      <Icon className="w-4 h-4 text-[#00f0ff]" />
+                      {section.title}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {section.items.length > 0 ? (
+                      <ul className="space-y-2">
+                        {section.items.map((item, itemIdx) => (
+                          <li key={itemIdx} className="flex items-start gap-3">
+                            <span className="w-6 h-6 rounded-full bg-[#00f0ff]/10 border border-[#00f0ff]/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-xs text-[#00f0ff] font-medium">{itemIdx + 1}</span>
+                            </span>
+                            <span className="text-[#ccccdd] flex-1">{item.replace(/^\d+[.、]\s*/, '')}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : section.text ? (
+                      <p className="text-[#ccccdd] whitespace-pre-wrap leading-relaxed">{section.text}</p>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        ) : (
+          /* Fallback: plain text if no sections found */
+          <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#ff00aa]" />
+                质检报告
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <pre className="whitespace-pre-wrap text-[#ccccdd] font-sans bg-[#0a0a0f] border border-[#2a2a4a] rounded-lg p-4">
                 {report.content}
               </pre>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Action Buttons */}
         <Card className="bg-[#12122a]/80 border-[#2a2a4a]">
