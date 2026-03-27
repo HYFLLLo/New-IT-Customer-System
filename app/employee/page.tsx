@@ -256,7 +256,7 @@ export default function EmployeePage() {
             <p className="text-gray-500 max-w-md mb-6">
               描述你遇到的IT问题，如电脑蓝屏、网络故障、软件安装等，我会尽力帮你解决
             </p>
-            <div className="flex flex-wrap gap-2 justify-center mb-6">
+            <div className="flex flex-wrap gap-2 justify-center">
               {['电脑蓝屏了怎么办', '网络连不上', '如何申请软件权限'].map((suggestion) => (
                 <button
                   key={suggestion}
@@ -267,13 +267,6 @@ export default function EmployeePage() {
                 </button>
               ))}
             </div>
-            <Button 
-              onClick={() => setShowCreateTicketModal(true)}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              直接创建工单
-            </Button>
           </div>
         ) : (
           <div className="space-y-4">
