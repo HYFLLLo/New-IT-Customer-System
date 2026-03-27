@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, FileText, CheckCircle, Phone, Loader2, Bot, AlertCircle, Wrench, Lightbulb, Info } from 'lucide-react'
+import { ArrowLeft, FileText, CheckCircle, Phone, Loader2, Bot, AlertCircle, Wrench, Lightbulb, ListOrdered, FileCheck } from 'lucide-react'
 
 interface Report {
   id: string
@@ -23,40 +23,195 @@ interface Report {
   createdBy?: { id: string; name: string }
 }
 
-// 解析报告内容为结构化数据
-function parseReportContent(content: string): { sections: Array<{ title: string; icon: any; items: string[]; text?: string }> } {
-  const sections: Array<{ title: string; icon: any; items: string[]; text?: string }> = []
+// 解析 Markdown 格式的报告内容
+function parseReportContent(content: string): { sections: Array<{ title: string; icon: any; level: number; body: string }> } {
+  const sections: Array<{ title: string; icon: any; level: number; body: string }> = []
   
-  // 按 【】 分割内容
-  const parts = content.split(/【([^】]+)】/).filter(Boolean)
+  // 按 ## 标题分割
+  const parts = content.split(/\n##\s*/)
   
-  const iconMap: Record<string, any> = {
-    '问题描述': AlertCircle,
-    '解决步骤': Wrench,
-    '处理方案': Wrench,
-    '注意事项': Lightbulb,
-    '建议': Lightbulb,
-    '诊断': Info,
-    '结论': CheckCircle,
+  // 第一个部分可能是 # 标题
+  if (parts[0] && !parts[0].startsWith('##')) {
+    const firstLine = parts[0].split('\n')[0].replace(/^#+\s*/, '').trim()
+    if (firstLine) {
+      sections.push({
+        title: firstLine,
+        icon: FileCheck,
+        level: 1,
+        body: parts[0].replace(/^#+\s*.*\n*/, '').trim(),
+      })
+    }
   }
   
-  for (let i = 0; i < parts.length; i += 2) {
-    const title = parts[i].trim()
-    const body = parts[i + 1] || ''
+  // 处理剩余的 ## 标题
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i]
+    const lines = part.split('\n')
+    const title = lines[0].replace(/^#+\s*/, '').trim()
+    const body = lines.slice(1).join('\n').trim()
     
-    // 判断是列表还是段落
-    const lines = body.split('\n').map((l: string) => l.trim()).filter(Boolean)
-    const isList = lines.every((l: string) => /^\d+[.、]/.test(l) || l.startsWith('-') || l.startsWith('•'))
+    // 根据标题关键词选择图标
+    let icon = FileText
+    if (/问题|诊断|概述/.test(title)) icon = AlertCircle
+    else if (/解决|处理|步骤|流程|操作/.test(title)) icon = Wrench
+    else if (/注意|建议|提示/.test(title)) icon = Lightbulb
+    else if (/清单|列表|项目/.test(title)) icon = ListOrdered
     
-    sections.push({
-      title,
-      icon: iconMap[title] || FileText,
-      items: isList ? lines : [],
-      text: !isList ? body.trim() : undefined,
-    })
+    sections.push({ title, icon, level: 2, body })
   }
   
   return { sections }
+}
+
+// 渲染列表内容
+function renderList(body: string): React.ReactNode {
+  const lines = body.split('\n').filter(l => l.trim())
+  const items: React.ReactNode[] = []
+  let currentText = ''
+  let inTable = false
+  let tableRows: string[][] = []
+  let inList = false
+  let listItems: string[] = []
+  
+  for (const line of lines) {
+    // 表格行
+    if (line.startsWith('|')) {
+      if (!inTable) {
+        inTable = true
+        tableRows = []
+      }
+      const cells = line.split('|').filter(c => c.trim() && !c.match(/^-+$/))
+      if (cells.length > 0) tableRows.push(cells)
+      continue
+    } else if (inTable) {
+      // 渲染表格
+      if (tableRows.length > 0) {
+        items.push(
+          <div key={items.length} className="overflow-x-auto mb-3">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-[#1a1a2e]">
+                  {tableRows[0].map((cell, idx) => (
+                    <th key={idx} className="border border-[#2a2a4a] px-3 py-2 text-left text-[#00f0ff]">{cell.trim()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.slice(2).map((row, rowIdx) => (
+                  <tr key={rowIdx} className="border border-[#2a2a4a]">
+                    {row.map((cell, cellIdx) => (
+                      <td key={cellIdx} className="border border-[#2a2a4a] px-3 py-2 text-[#ccccdd]">{cell.trim()}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+      inTable = false
+      tableRows = []
+    }
+    
+    // 有序列表项 (1. 2. 或 1、2、)
+    const orderedMatch = line.match(/^(\d+)[.、]\s*(.+)/)
+    if (orderedMatch) {
+      inList = true
+      listItems.push(`<span class="text-[#00f0ff] mr-2">${orderedMatch[1]}.</span>${orderedMatch[2]}`)
+      continue
+    } else if (inList && (line.match(/^\d+[.、]/) || line.startsWith('-'))) {
+      const match = line.match(/^(\d+)[.、]\s*(.+)/) || line.match(/^-\s*(.+)/)
+      if (match) {
+        const numMatch = line.match(/^\d+/)
+        const prefix = numMatch ? numMatch[0] : '•'
+        listItems.push(`<span class="text-[#00f0ff] mr-2">${prefix}.</span>${match[2] || match[1]}`)
+        continue
+      }
+    }
+    
+    // 无序列表项 (- 或 •)
+    const bulletMatch = line.match(/^[-•]\s+(.+)/)
+    if (bulletMatch) {
+      listItems.push(`<span class="text-[#ff00aa] mr-2">•</span>${bulletMatch[1]}`)
+      continue
+    }
+    
+    // 渲染累积的列表
+    if (inList && listItems.length > 0) {
+      items.push(
+        <ul key={items.length} className="space-y-2 mb-3">
+          {listItems.map((item, idx) => (
+            <li key={idx} className="flex items-start gap-2" dangerouslySetInnerHTML={{ __html: item }} />
+          ))}
+        </ul>
+      )
+      listItems = []
+      inList = false
+    }
+    
+    // 标题标记行 (### 或 **bold**)
+    if (line.startsWith('### ')) {
+      items.push(
+        <h4 key={items.length} className="text-[#00f0ff] font-medium text-sm mt-4 mb-2">
+          {line.replace(/^###\s*/, '')}
+        </h4>
+      )
+      continue
+    }
+    
+    // 分割线
+    if (line.match(/^---+$/)) continue
+    
+    // 普通段落 - 处理 **bold** 文本
+    const processedLine = line
+      .replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
+      .replace(/\n/g, '<br/>')
+    
+    if (processedLine.trim()) {
+      items.push(
+        <p key={items.length} className="text-[#ccccdd] mb-2 leading-relaxed" dangerouslySetInnerHTML={{ __html: processedLine }} />
+      )
+    }
+  }
+  
+  // 渲染剩余的列表
+  if (inList && listItems.length > 0) {
+    items.push(
+      <ul key={items.length} className="space-y-2 mb-3">
+        {listItems.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-2" dangerouslySetInnerHTML={{ __html: item }} />
+        ))}
+      </ul>
+    )
+  }
+  
+  // 渲染剩余的表格
+  if (inTable && tableRows.length > 0) {
+    items.push(
+      <div key={items.length} className="overflow-x-auto mb-3">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-[#1a1a2e]">
+              {tableRows[0].map((cell, idx) => (
+                <th key={idx} className="border border-[#2a2a4a] px-3 py-2 text-left text-[#00f0ff]">{cell.trim()}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.slice(2).map((row, rowIdx) => (
+              <tr key={rowIdx} className="border border-[#2a2a4a]">
+                {row.map((cell, cellIdx) => (
+                  <td key={cellIdx} className="border border-[#2a2a4a] px-3 py-2 text-[#ccccdd]">{cell.trim()}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  
+  return items.length > 0 ? items : <p className="text-[#ccccdd]">{body}</p>
 }
 
 export default function ReportPage() {
@@ -155,7 +310,7 @@ export default function ReportPage() {
           <CardContent className="pt-4">
             <div className="flex flex-wrap gap-4 text-sm text-[#8888aa]">
               <div className="flex items-center gap-2">
-                <span className="text-[#8888aa]">生成方式:</span>
+                <span>生成方式:</span>
                 <Badge className={report.generatedBy === 'AI' 
                   ? 'bg-[#ff00aa]/10 border-[#ff00aa]/30 text-[#ff00aa]' 
                   : 'bg-[#00f0ff]/10 border-[#00f0ff]/30 text-[#00f0ff]'
@@ -165,7 +320,7 @@ export default function ReportPage() {
               </div>
               {report.createdBy && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[#8888aa]">生成人:</span>
+                  <span>生成人:</span>
                   <span className="text-[#ccccdd]">{report.createdBy.name}</span>
                 </div>
               )}
@@ -174,7 +329,7 @@ export default function ReportPage() {
         </Card>
 
         {/* Original Problem */}
-        <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
+        <Card className="bg-[#12122a]/80 border-[#ff3366]/30 mb-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-white text-base flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-[#ff3366]" />
@@ -186,7 +341,7 @@ export default function ReportPage() {
           </CardContent>
         </Card>
 
-        {/* Report Content - Structured Rendering */}
+        {/* Report Sections */}
         {sections.length > 0 ? (
           <div className="space-y-4 mb-6">
             {sections.map((section, idx) => {
@@ -199,37 +354,17 @@ export default function ReportPage() {
                       {section.title}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    {section.items.length > 0 ? (
-                      <ul className="space-y-2">
-                        {section.items.map((item, itemIdx) => (
-                          <li key={itemIdx} className="flex items-start gap-3">
-                            <span className="w-6 h-6 rounded-full bg-[#00f0ff]/10 border border-[#00f0ff]/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-xs text-[#00f0ff] font-medium">{itemIdx + 1}</span>
-                            </span>
-                            <span className="text-[#ccccdd] flex-1">{item.replace(/^\d+[.、]\s*/, '')}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : section.text ? (
-                      <p className="text-[#ccccdd] whitespace-pre-wrap leading-relaxed">{section.text}</p>
-                    ) : null}
+                  <CardContent className="space-y-2">
+                    {renderList(section.body)}
                   </CardContent>
                 </Card>
               )
             })}
           </div>
         ) : (
-          /* Fallback: plain text if no sections found */
           <Card className="bg-[#12122a]/80 border-[#2a2a4a] mb-6">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-white text-base flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#ff00aa]" />
-                质检报告
-              </CardTitle>
-            </CardHeader>
             <CardContent>
-              <pre className="whitespace-pre-wrap text-[#ccccdd] font-sans bg-[#0a0a0f] border border-[#2a2a4a] rounded-lg p-4">
+              <pre className="whitespace-pre-wrap text-[#ccccdd] text-sm font-mono bg-[#0a0a0f] border border-[#2a2a4a] rounded-lg p-4">
                 {report.content}
               </pre>
             </CardContent>
