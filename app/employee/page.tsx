@@ -1,56 +1,78 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Send, CheckCircle, AlertTriangle, XCircle, Loader2, FileText, Clock, History } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, ThumbsUp, ThumbsDown, Plus, Ticket, X } from 'lucide-react'
 
 const CURRENT_EMPLOYEE_ID = 'emp-001'
-const CURRENT_EMPLOYEE_NAME = '张三'
 
-interface ChatResult {
-  ticketId: string
-  answer: string | null
-  confidence: number
-  shouldCreateTicket: boolean
-  showAnswer: boolean
-  status: string
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  confidence?: number
+  createdAt: string
 }
 
-const categoryOptions = [
-  { value: '系统故障', label: '系统故障' },
-  { value: '网络问题', label: '网络问题' },
-  { value: '硬件问题', label: '硬件问题' },
-  { value: '软件问题', label: '软件问题' },
-  { value: '账号权限', label: '账号权限' },
-  { value: '其他', label: '其他' },
+const problemTypes = [
+  { value: '系统故障', label: '🖥️ 系统故障（蓝屏、死机、崩溃）' },
+  { value: '网络问题', label: '🌐 网络问题（连不上、网速慢）' },
+  { value: '硬件问题', label: '🔌 硬件问题（打印机、键盘鼠标）' },
+  { value: '软件问题', label: '📀 软件问题（安装、卸载、报错）' },
+  { value: '账号权限', label: '🔐 账号权限（密码、权限申请）' },
+  { value: '其他', label: '📋 其他问题' },
 ]
 
 export default function EmployeePage() {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('')
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<ChatResult | null>(null)
+  const [ticketId, setTicketId] = useState<string | null>(null)
+  const [confidence, setConfidence] = useState<number>(0)
   const [feedbackGiven, setFeedbackGiven] = useState(false)
+  const [attachments, setAttachments] = useState<File[]>([])
+  
+  // Modal state
+  const [showCreateTicketModal, setShowCreateTicketModal] = useState(false)
+  const [createTicketLoading, setCreateTicketLoading] = useState(false)
+  const [ticketTitle, setTicketTitle] = useState('')
+  const [ticketType, setTicketType] = useState('')
+  const [ticketDescription, setTicketDescription] = useState('')
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !description.trim() || !category) {
-      toast.error('请填写所有必填字段')
-      return
+    if (!input.trim() || loading) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
+      createdAt: new Date().toISOString(),
     }
 
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
     setLoading(true)
-    setResult(null)
     setFeedbackGiven(false)
 
     try {
@@ -58,249 +80,398 @@ export default function EmployeePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: `${title}\n\n${description}`,
+          question: userMessage.content,
           employeeId: CURRENT_EMPLOYEE_ID,
+          ticketId,
+          conversationHistory: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setResult(data)
+
+      if (!res.ok) throw new Error(data.error || '提交失败')
+
+      if (ticketId === null && data.ticketId) {
+        setTicketId(data.ticketId)
+      }
+      setConfidence(data.confidence)
+
+      if (data.answer) {
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: data.answer,
+          confidence: data.confidence,
+          createdAt: new Date().toISOString(),
+        }
+        setMessages(prev => [...prev, assistantMessage])
+      }
     } catch (error) {
       toast.error('提交失败，请重试')
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id))
     } finally {
       setLoading(false)
     }
   }
 
+  const handleCreateTicket = async () => {
+    if (!ticketTitle.trim() || !ticketType || !ticketDescription.trim()) {
+      toast.error('请填写所有必填字段')
+      return
+    }
+
+    setCreateTicketLoading(true)
+
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `[${ticketType}] ${ticketTitle}`,
+          description: ticketDescription,
+          employeeId: CURRENT_EMPLOYEE_ID,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) throw new Error(data.error)
+
+      toast.success('工单创建成功！')
+      setShowCreateTicketModal(false)
+      setTicketTitle('')
+      setTicketType('')
+      setTicketDescription('')
+      
+      // Refresh ticket ID if needed
+      if (data.ticket?.id) {
+        setTicketId(data.ticket.id)
+      }
+    } catch (error) {
+      toast.error('创建工单失败')
+    } finally {
+      setCreateTicketLoading(false)
+    }
+  }
+
   const handleFeedback = async (resolved: boolean) => {
-    if (!result?.ticketId) return
+    if (!ticketId) return
 
     try {
       await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ticketId: result.ticketId,
+          ticketId,
           userId: CURRENT_EMPLOYEE_ID,
-          rating: resolved ? 5 : 2,
+          rating: resolved ? 5 : 3,
           comment: resolved ? '问题已解决' : '问题未解决',
         }),
       })
       setFeedbackGiven(true)
-      toast.success(resolved ? '感谢您的好评！' : '已提交反馈，我们会尽快处理')
+      toast.success(resolved ? '感谢您的好评！' : '感谢反馈，我们会继续优化')
     } catch (error) {
       toast.error('反馈提交失败')
     }
   }
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600'
-    if (confidence >= 0.6) return 'text-yellow-600'
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length > 0) {
+      setAttachments(prev => [...prev, ...files])
+      toast.success(`已添加 ${files.length} 个附件`)
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const getConfidenceColor = (conf: number) => {
+    if (conf >= 0.8) return 'text-green-600'
+    if (conf >= 0.6) return 'text-yellow-600'
     return 'text-red-600'
   }
 
+  const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
+  const showFeedback = lastAssistantMessage && !feedbackGiven && lastAssistantMessage.confidence && lastAssistantMessage.confidence >= 0.6
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+        <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">IT问题智能解答</h1>
-              <p className="text-sm text-gray-500">欢迎，{CURRENT_EMPLOYEE_NAME}</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+                <Bot className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="font-semibold text-gray-900">IT智能助手</h1>
+                <p className="text-xs text-gray-500">基于知识库的AI问答</p>
+              </div>
             </div>
-            <Link href="/employee/history">
-              <Button variant="outline" size="sm">
-                <History className="w-4 h-4 mr-2" />
-                我的工单
+            <div className="flex items-center gap-2">
+              {ticketId && (
+                <Badge variant="secondary" className="text-xs">
+                  工单: {ticketId.slice(0, 8)}...
+                </Badge>
+              )}
+              {/* Create Ticket Button */}
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowCreateTicketModal(true)}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                创建工单
               </Button>
-            </Link>
+              <Link href="/employee/history">
+                <Button variant="ghost" size="sm">
+                  <History className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="mb-8">
-          <p className="text-gray-600">描述您遇到的问题，AI将基于知识库为您提供即时解答</p>
-        </div>
-
-        <div className="grid gap-6">
-          {/* Question Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                提交问题
-              </CardTitle>
-              <CardDescription>请详细描述您遇到的问题，以便AI更准确地为您提供帮助</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="category">问题类别 *</Label>
-                    <select
-                      id="category"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      required
-                    >
-                      <option value="">选择问题类别</option>
-                      {categoryOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="title">问题标题 *</Label>
-                  <Input
-                    id="title"
-                    placeholder="简要描述您的问题"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">问题详情 *</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="请详细描述您遇到的问题，包括：&#10;- 什么时候开始出现的&#10;- 具体的错误信息或现象&#10;- 已经尝试过的解决方法"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={6}
-                    required
-                  />
-                </div>
-
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      AI分析中...
-                    </>
+      {/* Chat Messages */}
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-4 overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mb-4">
+              <Bot className="w-10 h-10 text-blue-600" />
+            </div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">你好，我是IT智能助手</h2>
+            <p className="text-gray-500 max-w-md mb-6">
+              描述你遇到的IT问题，如电脑蓝屏、网络故障、软件安装等，我会尽力帮你解决
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center mb-6">
+              {['电脑蓝屏了怎么办', '网络连不上', '如何申请软件权限'].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  onClick={() => setInput(suggestion)}
+                  className="px-4 py-2 bg-white border rounded-full text-sm text-gray-700 hover:bg-gray-50 hover:border-blue-300 transition-colors"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+            <Button 
+              onClick={() => setShowCreateTicketModal(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              直接创建工单
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+              >
+                <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
+                  message.role === 'user' ? 'bg-blue-600' : 'bg-gray-200'
+                }`}>
+                  {message.role === 'user' ? (
+                    <User className="w-4 h-4 text-white" />
                   ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      提交并获取AI解答
-                    </>
+                    <Bot className="w-4 h-4 text-gray-600" />
                   )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* AI Result */}
-          {result && (
-            <Card className="border-2">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CardTitle>AI智能解答</CardTitle>
-                    {result.confidence >= 0.8 && (
-                      <Badge variant="success">高置信度</Badge>
-                    )}
-                    {result.confidence >= 0.6 && result.confidence < 0.8 && (
-                      <Badge variant="warning">中等置信度</Badge>
-                    )}
-                    {result.confidence < 0.6 && (
-                      <Badge variant="error">低置信度</Badge>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500 mb-1">置信度</div>
-                    <div className={`text-2xl font-bold ${getConfidenceColor(result.confidence)}`}>
-                      {(result.confidence * 100).toFixed(0)}%
+                </div>
+                <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${
+                  message.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-tr-sm'
+                    : 'bg-white border text-gray-800 rounded-tl-sm'
+                }`}>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+                  {message.role === 'assistant' && message.confidence !== undefined && (
+                    <div className="mt-2 pt-2 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">置信度</span>
+                        <span className={`text-sm font-semibold ${getConfidenceColor(message.confidence)}`}>
+                          {(message.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <Progress value={message.confidence * 100} className="h-1 mt-1" />
                     </div>
+                  )}
+                  <p className={`text-xs mt-1 ${
+                    message.role === 'user' ? 'text-blue-200' : 'text-gray-600'
+                  }`}>
+                    {formatTime(message.createdAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-gray-600" />
+                </div>
+                <div className="bg-white border rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">AI思考中...</span>
                   </div>
                 </div>
-                <Progress value={result.confidence * 100} className="mt-2" />
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Confidence Alert */}
-                {result.confidence >= 0.8 && (
-                  <Alert variant="success">
-                    <CheckCircle className="w-4 h-4" />
-                    <AlertDescription>
-                      AI对此问题有较高把握，建议按照以下方案尝试解决
-                    </AlertDescription>
-                  </Alert>
-                )}
+              </div>
+            )}
 
-                {result.confidence >= 0.6 && result.confidence < 0.8 && (
-                  <Alert variant="warning">
-                    <AlertTriangle className="w-4 h-4" />
-                    <AlertDescription>
-                      AI提供了可能的解决方案，建议尝试后仍未解决时创建工单
-                    </AlertDescription>
-                  </Alert>
-                )}
+            {showFeedback && (
+              <div className="flex items-center justify-center gap-3 py-4">
+                <span className="text-sm text-gray-500">问题解决了吗？</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFeedback(true)}
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                >
+                  <ThumbsUp className="w-4 h-4 mr-1" />
+                  已解决
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFeedback(false)}
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                >
+                  <ThumbsDown className="w-4 h-4 mr-1" />
+                  未解决
+                </Button>
+              </div>
+            )}
 
-                {result.confidence < 0.6 && (
-                  <Alert variant="error">
-                    <XCircle className="w-4 h-4" />
-                    <AlertDescription>
-                      AI无法提供可靠的解决方案，建议直接创建工单由技术人员处理
-                    </AlertDescription>
-                  </Alert>
-                )}
+            {feedbackGiven && (
+              <div className="text-center py-2">
+                <Badge variant="success" className="bg-green-100 text-green-700">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  感谢您的反馈
+                </Badge>
+              </div>
+            )}
 
-                {/* Answer Content */}
-                {result.showAnswer && result.answer && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="whitespace-pre-wrap text-gray-700">{result.answer}</p>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                {!feedbackGiven ? (
-                  <div className="flex gap-3 pt-4">
-                    {result.confidence >= 0.8 ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleFeedback(false)}
-                          className="flex-1"
-                        >
-                          问题未解决，创建工单
-                        </Button>
-                        <Button
-                          onClick={() => handleFeedback(true)}
-                          className="flex-1 bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          问题已解决
-                        </Button>
-                      </>
-                    ) : (
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                        创建工单
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-4 text-green-600">
-                    <CheckCircle className="w-8 h-8 mx-auto mb-2" />
-                    <p>感谢您的反馈！</p>
-                  </div>
-                )}
-
-                {/* Ticket ID */}
-                <div className="text-center text-sm text-gray-500 pt-4 border-t">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  工单编号: <span className="font-mono">{result.ticketId.slice(0, 8)}...</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </main>
+
+      {/* Input Area */}
+      <footer className="bg-white border-t sticky bottom-0">
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {attachments.map((file, index) => (
+                <div key={index} className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-xs">
+                  <Paperclip className="w-3 h-3" />
+                  <span className="max-w-[80px] truncate">{file.name}</span>
+                  <button onClick={() => removeAttachment(index)} className="text-gray-400 hover:text-red-500">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
+            <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+              <Paperclip className="w-5 h-5" />
+            </Button>
+            <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="输入你的问题..." className="flex-1" disabled={loading} />
+            <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-blue-600 hover:bg-blue-700">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            </Button>
+          </form>
+        </div>
+      </footer>
+
+      {/* Create Ticket Modal */}
+      <Dialog open={showCreateTicketModal} onOpenChange={setShowCreateTicketModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Ticket className="w-5 h-5 text-blue-600" />
+              </div>
+              创建工单
+            </DialogTitle>
+            <DialogDescription>
+              填写以下信息，提交后坐席人员会尽快处理
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="ticket-type">问题类型 *</Label>
+              <select
+                id="ticket-type"
+                value={ticketType}
+                onChange={(e) => setTicketType(e.target.value)}
+                className="w-full h-10 px-3 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                required
+              >
+                <option value="">请选择问题类型</option>
+                {problemTypes.map((type) => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ticket-title">问题标题 *</Label>
+              <Input
+                id="ticket-title"
+                value={ticketTitle}
+                onChange={(e) => setTicketTitle(e.target.value)}
+                placeholder="简要描述问题"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ticket-desc">问题详情 *</Label>
+              <Textarea
+                id="ticket-desc"
+                value={ticketDescription}
+                onChange={(e) => setTicketDescription(e.target.value)}
+                placeholder="请详细描述您遇到的问题，包括：&#10;- 问题现象&#10;- 发生时间&#10;- 已尝试的解决方法"
+                rows={5}
+                required
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateTicketModal(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateTicket} disabled={createTicketLoading} className="bg-blue-600 hover:bg-blue-700">
+              {createTicketLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  创建中...
+                </>
+              ) : (
+                <>
+                  <Ticket className="w-4 h-4 mr-2" />
+                  提交工单
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
