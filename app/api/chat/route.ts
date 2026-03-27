@@ -43,12 +43,21 @@ export async function POST(request: NextRequest) {
       chatHistory
     )
 
+    // Check if AI explicitly says it can't answer
+    const cantHelpPhrases = ['没有找到', '无法回答', '不知道', '知识库中没有', '无法提供', '抱歉，知识库']
+    const aiCantHelp = cantHelpPhrases.some(phrase => answer.toLowerCase().includes(phrase))
+
     // Determine ticket creation based on confidence
     let shouldCreateTicket = false
     let showAnswer = true
     let status: 'AI_ANSWERED' | 'OPEN' = 'AI_ANSWERED'
 
-    if (confidence < 0.6) {
+    if (aiCantHelp) {
+      // AI explicitly can't help → directly create ticket, don't show the "can't help" message
+      shouldCreateTicket = true
+      showAnswer = false
+      status = 'OPEN'
+    } else if (confidence < 0.6) {
       shouldCreateTicket = true
       showAnswer = false
       status = 'OPEN'

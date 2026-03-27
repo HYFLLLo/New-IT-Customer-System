@@ -103,6 +103,17 @@ export default function EmployeePage() {
           createdAt: new Date().toISOString(),
         }
         setMessages(prev => [...prev, assistantMessage])
+      } else if (data.showAnswer === false && data.shouldCreateTicket) {
+        // AI couldn't help, ticket was created directly
+        toast.success('已为您创建工单，IT人员会尽快处理！')
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '抱歉，知识库中没有找到相关信息。为了确保您的问题能得到妥善解决，我已为您创建了工单，IT人员会尽快与您联系处理。',
+          confidence: 0,
+          createdAt: new Date().toISOString(),
+        }
+        setMessages(prev => [...prev, assistantMessage])
       }
     } catch (error) {
       toast.error('提交失败，请重试')
