@@ -1,0 +1,38 @@
+{
+  "name": "IT Helpdesk 客服系统",
+  "short_name": "IT帮辅",
+  "description": "企业IT运维工单系统 - AI智能解答 + 人工服务",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "员工提问",
+      "short_name": "提问",
+      "url": "/employee",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "坐席工作台",
+      "short_name": "坐席",
+      "url": "/agent/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

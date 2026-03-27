@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  EMPLOYEE
+  AGENT
+  ADMIN
+}
+
+enum FileType {
+  PDF
+  MARKDOWN
+  DOCX
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum TicketStatus {
+  OPEN
+  AI_ANSWERED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum MessageType {
+  USER
+  AI
+  AGENT
+}
+
+enum QAReportGeneratedBy {
+  AI
+  MANUAL
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String?
+  role         UserRole  @default(EMPLOYEE)
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  uploadedDocuments Document[]
+  tickets           Ticket[]      @relation("EmployeeTickets")
+  assignedTickets   Ticket[]      @relation("AgentTickets")
+  messages          Message[]
+  qaReports         QAReport[]
+  feedbacks         Feedback[]
+}
+
+model Document {
+  id        String         @id @default(uuid())
+  title     String
+  fileName  String
+  fileType  FileType
+  filePath  String
+  status    DocumentStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+
+  // Relations
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  chunks Chunk[]
+}
+
+model Chunk {
+  id         String   @id @default(uuid())
+  content    String
+  chromaId   String   @unique
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  documentId String
+}
+
+model Ticket {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  status      TicketStatus @default(OPEN)
+  confidence  Float?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  employee      User         @relation("EmployeeTickets", fields: [employeeId], references: [id])
+  employeeId    String
+  assignedTo    User?        @relation("AgentTickets", fields: [assignedToId], references: [id])
+  assignedToId  String?
+  messages      Message[]
+  qaReports     QAReport[]
+  feedback      Feedback?
+  extractedData Json?        // AI 提取的关键字段
+}
+
+model Message {
+  id        String      @id @default(uuid())
+  content   String
+  type      MessageType
+  createdAt DateTime    @default(now())
+
+  // Relations
+  ticket    Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  sender    User    @relation(fields: [senderId], references: [id])
+  senderId  String
+  attachments Attachment[]
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  fileName  String
+  fileType  String
+  fileSize  Int
+  filePath  String
+  createdAt DateTime @default(now())
+
+  // Relations
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String
+}
+
+model QAReport {
+  id          String           @id @default(uuid())
+  title       String
+  content     String
+  generatedBy QAReportGeneratedBy
+  createdAt   DateTime         @default(now())
+
+  // Relations
+  ticket     Ticket @relation(fields: [ticketId], references: [id])
+  ticketId   String
+  createdBy  User   @relation(fields: [createdById], references: [id])
+  createdById String
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  rating    Int      // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  ticket   Ticket  @relation(fields: [ticketId], references: [id])
+  ticketId String  @unique
+  user     User    @relation(fields: [userId], references: [id])
+  userId   String
+}
