@@ -118,7 +118,7 @@ function generateMockResponse(question: string): string {
 
 // Ollama configuration for embeddings
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434'
-const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'nomic-embed-text'
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'bge-m3'
 
 export async function embedText(text: string): Promise<number[]> {
   // Try Ollama API first (local embedding)

@@ -21,7 +21,7 @@ from typing import List, Dict, Tuple
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
 CHROMA_PORT = os.getenv("CHROMA_PORT", "8000")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "bge-m3")
 TENANT = "default_tenant"
 DATABASE = "default_database"
 COLLECTION_NAME = "knowledge_base"
@@ -32,6 +32,14 @@ CHUNK_OVERLAP = 150  # Characters overlap between chunks
 MIN_CHUNK_SIZE = 200  # Minimum chunk size in characters
 MAX_CHUNK_SIZE = 1500  # Maximum chunk size in characters
 
+
+def normalize_embedding(embedding: list) -> list:
+    """L2 normalize an embedding vector"""
+    import math
+    magnitude = math.sqrt(sum(x * x for x in embedding))
+    if magnitude > 0:
+        return [x / magnitude for x in embedding]
+    return embedding
 
 def get_embedding(text: str) -> list:
     """Generate embedding using Ollama API and normalize"""
@@ -47,13 +55,8 @@ def get_embedding(text: str) -> list:
     data = response.json()
     embedding = data["embedding"]
     
-    # Normalize the embedding (L2 norm)
-    import math
-    magnitude = math.sqrt(sum(x * x for x in embedding))
-    if magnitude > 0:
-        embedding = [x / magnitude for x in embedding]
-    
-    return embedding
+    # Normalize the embedding (L2 norm) for cosine similarity
+    return normalize_embedding(embedding)
 
 
 def delete_collection(client: httpx.Client, name: str):
