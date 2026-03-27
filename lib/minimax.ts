@@ -52,6 +52,101 @@ export async function chatCompletion(
   return generateMockResponse(lastUserMessage)
 }
 
+/**
+ * Streaming chat completion with thought chain support
+ * Uses SSE (Server-Sent Events) to stream tokens
+ */
+export async function streamChatCompletion(
+  messages: MiniMaxMessage[],
+  temperature: number = 0.7
+): Promise<ReadableStream<Uint8Array>> {
+  // Add thought chain instruction to system prompt
+  const modifiedMessages = messages.map(msg => {
+    if (msg.role === 'system') {
+      return {
+        ...msg,
+        content: msg.content + '\n\n重要：请在回答前先输出你的思考过程，用<thinking>标签包裹。例如：<thinking>我需要分析这个问题...</thinking>然后再给出正式回答。'
+      }
+    }
+    return msg
+  })
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        const response = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${MINIMAX_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: MINIMAX_MODEL,
+            messages: modifiedMessages,
+            temperature,
+            stream: true,
+          }),
+        })
+
+        if (!response.ok) {
+          // Fallback to mock streaming
+          const mockResponse = generateMockResponse(
+            modifiedMessages.filter(m => m.role === 'user').pop()?.content || ''
+          )
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: mockResponse, done: true })}\n\n`))
+          controller.close()
+          return
+        }
+
+        const reader = response.body?.getReader()
+        if (!reader) {
+          controller.close()
+          return
+        }
+
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6)
+              if (data === '[DONE]') {
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+              } else {
+                try {
+                  const parsed = JSON.parse(data)
+                  const content = parsed.choices?.[0]?.delta?.content
+                  if (content) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                  }
+                } catch {
+                  // Skip invalid JSON
+                }
+              }
+            }
+          }
+        }
+
+        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ done: true })}\n\n`))
+        controller.close()
+      } catch (error) {
+        console.error('Stream error:', error)
+        controller.close()
+      }
+    },
+  })
+
+  return stream
+}
+
 function generateMockResponse(question: string): string {
   // Simple keyword-based mock responses for demo
   const lowerQ = question.toLowerCase()

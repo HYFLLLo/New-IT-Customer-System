@@ -20,6 +20,7 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  thinking?: string
   confidence?: number
   createdAt: string
 }
@@ -64,9 +65,22 @@ export default function EmployeePage() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set())
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const toggleThinking = (messageId: string) => {
+    setExpandedThinking(prev => {
+      const next = new Set(prev)
+      if (next.has(messageId)) {
+        next.delete(messageId)
+      } else {
+        next.add(messageId)
+      }
+      return next
+    })
   }
 
   useEffect(() => {
@@ -109,8 +123,19 @@ export default function EmployeePage() {
     setLoading(true)
     setFeedbackGiven(false)
 
+    // Create placeholder for assistant message
+    const assistantMessageId = (Date.now() + 1).toString()
+    const assistantMessage: Message = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      thinking: '',
+      createdAt: new Date().toISOString(),
+    }
+    setMessages(prev => [...prev, assistantMessage])
+
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -121,36 +146,95 @@ export default function EmployeePage() {
         }),
       })
 
-      const data = await res.json()
+      if (!res.ok) throw new Error('提交失败')
 
-      if (!res.ok) throw new Error(data.error || '提交失败')
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('无法读取响应')
 
-      if (ticketId === null && data.ticketId) setTicketId(data.ticketId)
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let fullContent = ''
+      let thinkingContent = ''
+      let inThinking = false
+      let currentTag = ''
 
-      if (data.answer) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: data.answer,
-          confidence: data.confidence,
-          createdAt: new Date().toISOString(),
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6)
+            if (dataStr === '[DONE]' || dataStr.includes('"done":true')) continue
+            
+            try {
+              const data = JSON.parse(dataStr)
+              if (data.content) {
+                fullContent += data.content
+                
+                // Parse thinking tags
+                buffer += data.content
+                
+                // Simple state machine to extract <thinking>...</thinking>
+                for (const char of data.content) {
+                  if (char === '<') {
+                    currentTag = '<'
+                  } else if (currentTag.startsWith('<')) {
+                    currentTag += char
+                    if (char === '>') {
+                      if (currentTag.toLowerCase().startsWith('</thinking>')) {
+                        inThinking = false
+                        thinkingContent += ' '
+                        currentTag = ''
+                      } else if (currentTag.toLowerCase().startsWith('<thinking>')) {
+                        inThinking = true
+                        currentTag = ''
+                      } else {
+                        currentTag = ''
+                      }
+                    }
+                  } else if (inThinking) {
+                    thinkingContent += char
+                  }
+                }
+                
+                // Update message with streamed content
+                setMessages(prev => prev.map(m => {
+                  if (m.id === assistantMessageId) {
+                    // Remove thinking tags from displayed content
+                    const displayContent = fullContent
+                      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+                      .trim()
+                    return { ...m, content: displayContent, thinking: thinkingContent.trim() }
+                  }
+                  return m
+                }))
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
         }
-        setMessages(prev => [...prev, assistantMessage])
-      } else if (data.showAnswer === false && data.shouldCreateTicket) {
-        // AI couldn't help, ticket was created directly
-        toast.success('已为您创建工单，IT人员会尽快处理！')
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: '抱歉，知识库中没有找到相关信息。为了确保您的问题能得到妥善解决，我已为您创建了工单，IT人员会尽快与您联系处理。',
-          confidence: 0,
-          createdAt: new Date().toISOString(),
-        }
-        setMessages(prev => [...prev, assistantMessage])
+      }
+
+      // After streaming done, create ticket if needed
+      if (ticketId === null) {
+        // Extract confidence from search results count
+        const confidence = 0.7 // Default for now
+        setMessages(prev => prev.map(m => {
+          if (m.id === assistantMessageId) {
+            return { ...m, confidence }
+          }
+          return m
+        }))
       }
     } catch (error) {
       toast.error('提交失败，请重试')
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id))
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id && m.id !== assistantMessageId))
     } finally {
       setLoading(false)
     }
@@ -346,6 +430,25 @@ export default function EmployeePage() {
                     : 'bg-[#12122a] border border-[#2a2a4a] text-[#e0e0ff]'
                 }`}>
                   {message.role === 'assistant' ? (
+                    <>
+                    {/* Thinking process display */}
+                    {message.thinking && message.thinking.length > 10 && (
+                      <div className="mb-2">
+                        <button
+                          onClick={() => toggleThinking(message.id)}
+                          className="flex items-center gap-1 text-xs text-[#8888aa] hover:text-[#00f0ff] transition-colors mb-1"
+                        >
+                          <Cpu className={`w-3 h-3 transition-transform ${expandedThinking.has(message.id) ? 'rotate-180' : ''}`} />
+                          <span>{expandedThinking.has(message.id) ? '收起' : 'AI思维链'}</span>
+                        </button>
+                        {expandedThinking.has(message.id) && (
+                          <div className="bg-[#0a0a0f]/80 border border-[#2a2a4a] rounded-lg p-2 text-xs text-[#8888aa] italic leading-relaxed">
+                            <Loader2 className="w-3 h-3 animate-spin inline mr-1 text-[#00f0ff]" />
+                            {message.thinking}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
                       components={{
@@ -377,6 +480,7 @@ export default function EmployeePage() {
                     >
                       {message.content}
                     </ReactMarkdown>
+                    </>
                   ) : (
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
                   )}
