@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, FileText, Clock, CheckCircle, MessageSquare, Bot } from 'lucide-react'
+import { ArrowLeft, FileText, Clock, CheckCircle, MessageSquare, Bot, Star } from 'lucide-react'
+import FeedbackModal from '@/components/employee/feedback-modal'
 
 const CURRENT_EMPLOYEE_ID = 'emp-001'
 
@@ -32,6 +33,8 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 export default function HistoryPage() {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
+  const [feedbackTicketId, setFeedbackTicketId] = useState<string | null>(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   useEffect(() => {
     fetchTickets()
@@ -47,6 +50,16 @@ export default function HistoryPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleFeedbackClick = (ticketId: string) => {
+    setFeedbackTicketId(ticketId)
+    setFeedbackOpen(true)
+  }
+
+  const handleFeedbackSubmitted = () => {
+    // Refresh tickets to show updated feedback status
+    fetchTickets()
   }
 
   return (
@@ -130,13 +143,13 @@ export default function HistoryPage() {
                         </Link>
                       )}
                       {ticket.status === 'RESOLVED' && !ticket.feedback && (
-                        <Link
-                          href={`/employee/feedback/${ticket.id}`}
+                        <button
+                          onClick={() => handleFeedbackClick(ticket.id)}
                           className="flex items-center gap-1 text-[#00ff88] hover:text-[#00dd66] transition-colors"
                         >
-                          <CheckCircle className="w-4 h-4" />
+                          <Star className="w-4 h-4" />
                           满意度评价
-                        </Link>
+                        </button>
                       )}
                       {ticket.feedback && (
                         <span className="flex items-center gap-1 text-[#8888aa]">
@@ -158,6 +171,16 @@ export default function HistoryPage() {
           </div>
         )}
       </main>
+
+      {/* Feedback Modal */}
+      {feedbackTicketId && (
+        <FeedbackModal
+          ticketId={feedbackTicketId}
+          open={feedbackOpen}
+          onOpenChange={setFeedbackOpen}
+          onSubmitted={handleFeedbackSubmitted}
+        />
+      )}
     </div>
   )
 }
