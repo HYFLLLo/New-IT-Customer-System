@@ -4,12 +4,11 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Card, CardContent } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Send, Bot, User, Loader2, CheckCircle, History, Paperclip, Plus, Ticket, Cpu, MessageSquare } from 'lucide-react'
 
@@ -33,6 +32,7 @@ const problemTypes = [
 ]
 
 export default function EmployeePage() {
+  const [mounted, setMounted] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -54,6 +54,7 @@ export default function EmployeePage() {
   }
 
   useEffect(() => {
+    setMounted(true)
     scrollToBottom()
   }, [messages])
 
@@ -192,6 +193,7 @@ export default function EmployeePage() {
 
   const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop()
   const showFeedback = lastAssistantMessage && !feedbackGiven && lastAssistantMessage.confidence && lastAssistantMessage.confidence >= 0.6
+  const isEmpty = messages.length === 0
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] cyber-grid-bg flex flex-col">
@@ -233,9 +235,13 @@ export default function EmployeePage() {
         </div>
       </header>
 
-      {/* Chat Messages */}
-      <main className={`flex-1 max-w-3xl mx-auto w-full px-4 ${messages.length === 0 ? 'flex flex-col items-center justify-center' : 'py-4 overflow-y-auto'}`}>
-        {messages.length === 0 ? (
+      {/* Chat Area */}
+      <main className={`flex-1 max-w-3xl mx-auto w-full px-4 ${isEmpty ? 'flex flex-col items-center justify-center' : 'py-4 overflow-y-auto'}`}>
+        {!mounted ? (
+          <div className="w-20 h-20 bg-gradient-to-br from-[#00f0ff]/20 to-[#9d00ff]/10 rounded-2xl flex items-center justify-center border border-[#00f0ff]/30">
+            <Bot className="w-10 h-10 text-[#00f0ff]" />
+          </div>
+        ) : isEmpty ? (
           <>
             <div className="w-20 h-20 bg-gradient-to-br from-[#00f0ff]/20 to-[#9d00ff]/10 rounded-2xl flex items-center justify-center mb-4 border border-[#00f0ff]/30 cyber-glow">
               <Bot className="w-10 h-10 text-[#00f0ff]" />
@@ -244,7 +250,7 @@ export default function EmployeePage() {
             <p className="text-[#8888aa] max-w-md mb-6 text-center">
               描述你遇到的IT问题，如电脑蓝屏、网络故障、软件安装等，我会尽力帮你解决
             </p>
-            <div className="flex flex-wrap gap-2 justify-center mb-8">
+            <div className="flex flex-wrap gap-2 justify-center">
               {['电脑蓝屏了怎么办', '网络连不上', '如何申请软件权限'].map((suggestion) => (
                 <button
                   key={suggestion}
@@ -254,38 +260,6 @@ export default function EmployeePage() {
                   {suggestion}
                 </button>
               ))}
-            </div>
-            {/* Input Area - Centered when empty */}
-            <div className="w-full max-w-xl">
-              <div className="bg-[#12122a]/80 backdrop-blur-sm border border-[#2a2a4a] rounded-2xl p-3">
-                {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {attachments.map((file, index) => (
-                      <div key={index} className="flex items-center gap-1 px-2 py-1 bg-[#0a0a0f] border border-[#2a2a4a] rounded text-xs text-[#8888aa]">
-                        <Paperclip className="w-3 h-3" />
-                        <span className="max-w-[80px] truncate">{file.name}</span>
-                        <button onClick={() => removeAttachment(index)} className="text-[#ff3366] hover:text-[#ff6688]">×</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                  <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
-                  <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
-                    <Paperclip className="w-5 h-5" />
-                  </Button>
-                  <Input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="输入你的问题..."
-                    className="flex-1 bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] focus:border-[#00f0ff]/50 focus:ring-[#00f0ff]/20"
-                    disabled={loading}
-                  />
-                  <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90 cyber-glow">
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                  </Button>
-                </form>
-              </div>
             </div>
           </>
         ) : (
@@ -390,42 +364,7 @@ export default function EmployeePage() {
         )}
       </main>
 
-      {/* Input Area - Only show when there are messages */}
-      {messages.length > 0 && (
-        <footer className="bg-[#12122a]/80 backdrop-blur-sm border-t border-[#2a2a4a]">
-          <div className="max-w-3xl mx-auto px-4 py-3">
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center gap-1 px-2 py-1 bg-[#0a0a0f] border border-[#2a2a4a] rounded text-xs text-[#8888aa]">
-                    <Paperclip className="w-3 h-3" />
-                    <span className="max-w-[80px] truncate">{file.name}</span>
-                    <button onClick={() => removeAttachment(index)} className="text-[#ff3366] hover:text-[#ff6688]">×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input ref={fileInputRef} type="file" accept="image/*,.pdf" multiple onChange={handleFileSelect} className="hidden" />
-              <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 text-[#8888aa] hover:text-[#00f0ff] hover:bg-[#00f0ff]/10">
-                <Paperclip className="w-5 h-5" />
-              </Button>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="输入你的问题..."
-                className="flex-1 bg-[#0a0a0f] border-[#2a2a4a] text-white placeholder:text-[#666688] focus:border-[#00f0ff]/50 focus:ring-[#00f0ff]/20"
-                disabled={loading}
-              />
-              <Button type="submit" size="icon" disabled={loading || !input.trim()} className="flex-shrink-0 bg-gradient-to-r from-[#00f0ff] to-[#00c0cc] text-[#0a0a0f] hover:opacity-90 cyber-glow">
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-              </Button>
-            </form>
-          </div>
-        </footer>
-      )}
-
-      {/* Input Area */}
+      {/* Input Area - Always at bottom */}
       <footer className="bg-[#12122a]/80 backdrop-blur-sm border-t border-[#2a2a4a] sticky bottom-0">
         <div className="max-w-3xl mx-auto px-4 py-3">
           {attachments.length > 0 && (
