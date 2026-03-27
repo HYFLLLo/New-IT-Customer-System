@@ -15,6 +15,7 @@ interface Document {
   fileName: string
   fileType: string
   status: string
+  progress?: string
   createdAt: string
   uploadedBy: { id: string; name: string }
   _count: { chunks: number }
@@ -48,6 +49,18 @@ export default function KnowledgePage() {
     }
     fetchDocuments()
   }, [])
+
+  // Poll for progress updates while documents are processing
+  useEffect(() => {
+    const hasProcessing = documents.some(d => d.status === 'PROCESSING' || d.status === 'PENDING')
+    if (!hasProcessing) return
+
+    const pollInterval = setInterval(() => {
+      fetchDocuments()
+    }, 1500) // Poll every 1.5 seconds
+
+    return () => clearInterval(pollInterval)
+  }, [documents])
 
   const fetchDocuments = async () => {
     try {
@@ -224,10 +237,22 @@ export default function KnowledgePage() {
                           <span>·</span>
                           <span>{new Date(doc.createdAt).toLocaleString('zh-CN')}</span>
                         </div>
+                        {doc.status === 'PROCESSING' && doc.progress && (
+                          <div className="flex items-center gap-1 text-sm text-[#ffcc00] mt-1">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            {doc.progress}
+                          </div>
+                        )}
                         {doc.status === 'PROCESSED' && (
                           <div className="flex items-center gap-1 text-sm text-[#00ff88] mt-1">
                             <CheckCircle className="w-4 h-4" />
                             {doc._count.chunks} 个切片已入库
+                          </div>
+                        )}
+                        {doc.status === 'FAILED' && doc.progress && (
+                          <div className="flex items-center gap-1 text-sm text-[#ff3366] mt-1">
+                            <XCircle className="w-4 h-4" />
+                            {doc.progress}
                           </div>
                         )}
                       </div>

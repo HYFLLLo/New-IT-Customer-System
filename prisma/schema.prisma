@@ -69,6 +69,7 @@ model Document {
   fileType  FileType
   filePath  String
   status    DocumentStatus @default(PENDING)
+  progress  String?        @default("")  // e.g., "解析文档中...", "切块中 (3/14)...", "入库中 (5/14)..."
   createdAt DateTime       @default(now())
 
   // Relations
