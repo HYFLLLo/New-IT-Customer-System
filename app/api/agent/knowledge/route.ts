@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { addChunks, deleteChunks } from '@/lib/chroma'
-import { parseDocument, getFileType } from '@/lib/parser'
+import { ChromaClient } from 'chromadb'
 import { DocumentStatus } from '@prisma/client'
 import * as fs from 'fs'
 import * as path from 'path'
+
+// Import parser functions
+import { parseDocument, getFileType } from '@/lib/parser'
+// Import minimax for embeddings
+import { embedText } from '@/lib/minimax'
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads')
 
@@ -101,7 +105,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Start processing in background
-    processDocument(document.id, filePath, fileType).catch(console.error)
+    console.log(`[Knowledge] Starting background processing for document ${document.id}`)
+    
+    // Fire and forget with proper error tracking
+    processDocument(document.id, filePath, fileType)
+      .then(() => console.log(`[Knowledge] Document ${document.id} processed successfully`))
+      .catch((err) => console.error(`[Knowledge] Document ${document.id} processing failed:`, err))
 
     return NextResponse.json({ document }, { status: 201 })
   } catch (error) {
@@ -126,11 +135,14 @@ async function processDocument(
   fileType: 'PDF' | 'MARKDOWN' | 'DOCX'
 ) {
   try {
+    console.log(`[Knowledge] Processing document ${documentId}, fileType=${fileType}`)
+    
     // Update status to processing
     await updateProgress(documentId, 'PROCESSING', '正在解析文档...')
 
     // Parse document
     const { chunks } = await parseDocument(filePath, fileType)
+    console.log(`[Knowledge] Parsed ${chunks.length} chunks`)
 
     if (chunks.length === 0) {
       await updateProgress(documentId, 'FAILED', '文档解析失败，未找到有效内容')
@@ -146,57 +158,65 @@ async function processDocument(
 
     // Step 1: Generate embeddings
     await updateProgress(documentId, 'PROCESSING', `正在生成向量 (0/${chunks.length})...`)
+    console.log(`[Knowledge] Generating embeddings...`)
     
-    const { embedText } = await import('@/lib/minimax')
     const batchSize = 5
+    const normalizedChunks: Array<{id: string, content: string, embedding: number[], metadata: any}> = []
     
     for (let i = 0; i < chunks.length; i += batchSize) {
       const batch = chunks.slice(i, i + batchSize)
+      console.log(`[Knowledge] Processing batch ${i}-${i+batchSize}`)
+      
       const embeddings = await Promise.all(
-        batch.map(chunk => embedText(chunk))
+        batch.map(async (chunk) => {
+          const emb = await embedText(chunk)
+          const mag = Math.sqrt(emb.reduce((s: number, v: number) => s + v * v, 0))
+          return mag > 0 ? emb.map((v: number) => v / mag) : emb
+        })
       )
       
-      // Normalize
-      const normalizedEmbeddings = embeddings.map((emb: number[]) => {
-        const mag = Math.sqrt(emb.reduce((s: number, v: number) => s + v * v, 0))
-        return mag > 0 ? emb.map((v: number) => v / mag) : emb
+      batch.forEach((content, idx) => {
+        normalizedChunks.push({
+          id: `${documentId}-chunk-${i + idx}`,
+          content,
+          embedding: embeddings[idx],
+          metadata: { documentId, chunkIndex: i + idx },
+        })
       })
       
       // Update progress
       const progress = Math.min(i + batchSize, chunks.length)
       await updateProgress(documentId, 'PROCESSING', `正在生成向量 (${progress}/${chunks.length})...`)
     }
+    
+    console.log(`[Knowledge] Generated ${normalizedChunks.length} embeddings`)
 
     // Step 2: Store in ChromaDB
-    await updateProgress(documentId, 'PROCESSING', `正在入库 (0/${chunks.length})...`)
+    await updateProgress(documentId, 'PROCESSING', `正在入库 (0/${chunkData.length})...`)
+    console.log(`[Knowledge] Storing in ChromaDB...`)
     
-    const { ChromaClient } = await import('chromadb')
     const client = new ChromaClient({ path: 'http://localhost:8000' })
     const col = await client.getCollection({ name: 'knowledge_base' })
     
-    for (let i = 0; i < chunkData.length; i += batchSize) {
-      const batch = chunkData.slice(i, i + batchSize)
-      const batchEmbeddings = await Promise.all(
-        batch.map(c => embedText(c.content))
-      )
-      const normalizedEmbeddings = batchEmbeddings.map((emb: number[]) => {
-        const mag = Math.sqrt(emb.reduce((s: number, v: number) => s + v * v, 0))
-        return mag > 0 ? emb.map((v: number) => v / mag) : emb
-      })
+    for (let i = 0; i < normalizedChunks.length; i += batchSize) {
+      const batch = normalizedChunks.slice(i, i + batchSize)
       
       await col.add({
         ids: batch.map(c => c.id),
-        embeddings: normalizedEmbeddings,
+        embeddings: batch.map(c => c.embedding),
         documents: batch.map(c => c.content),
         metadatas: batch.map(c => c.metadata),
       })
       
-      const progress = Math.min(i + batchSize, chunkData.length)
-      await updateProgress(documentId, 'PROCESSING', `正在入库 (${progress}/${chunks.length})...`)
+      const progress = Math.min(i + batchSize, normalizedChunks.length)
+      await updateProgress(documentId, 'PROCESSING', `正在入库 (${progress}/${chunkData.length})...`)
     }
+    
+    console.log(`[Knowledge] Stored in ChromaDB`)
 
     // Step 3: Save to database
     await updateProgress(documentId, 'PROCESSING', '正在保存元数据...')
+    console.log(`[Knowledge] Saving to database...`)
     
     await prisma.chunk.createMany({
       data: chunkData.map((c) => ({
