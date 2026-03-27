@@ -202,7 +202,11 @@ export default function KnowledgePage() {
                   return (
                     <div
                       key={doc.id}
-                      className="flex items-center gap-4 p-4 rounded-xl border bg-[#0a0a0f] border-[#2a2a4a] hover:border-[#00f0ff]/50 transition-colors"
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
+                        doc.status === 'FAILED' 
+                          ? 'bg-[#1a0a0f] border-[#ff3366]/30 hover:border-[#ff3366]/50' 
+                          : 'bg-[#0a0a0f] border-[#2a2a4a] hover:border-[#00f0ff]/50'
+                      }`}
                     >
                       <div className="text-3xl">{fileTypeIcons[doc.fileType] || '📄'}</div>
                       <div className="flex-1 min-w-0">
@@ -227,7 +231,7 @@ export default function KnowledgePage() {
                           </div>
                         )}
                       </div>
-                      {doc.status === 'PROCESSED' && (
+                      {(doc.status === 'PROCESSED' || doc.status === 'FAILED') && (
                         <Button
                           variant="ghost"
                           size="sm"
