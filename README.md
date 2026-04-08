@@ -160,16 +160,6 @@ npm run lint
    - 确保 ChromaDB 服务已启动
    - 配置好所有环境变量
 
-### Docker 部署（推荐）
-
-```bash
-# 构建 Docker 镜像
-docker build -t it-helpdesk .
-
-# 运行容器
-docker run -p 3000:3000 --env-file .env.local it-helpdesk
-```
-
 ## 常见问题
 
 ### Q: ChromaDB 服务启动失败？
