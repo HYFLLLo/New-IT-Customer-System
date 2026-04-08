@@ -592,40 +592,35 @@ export async function generateQAReport(
   // 处理对话历史
   let conversationAnalysis = ''
   if (conversationHistory && conversationHistory.length > 0) {
-    // 分析对话历史，提取未解决的点
     const userMessages = conversationHistory.filter(m => m.role === 'user').map(m => m.content)
     const assistantMessages = conversationHistory.filter(m => m.role === 'assistant').map(m => m.content)
     
-    conversationAnalysis = `\n\n[对话历史分析]\n`
-    conversationAnalysis += `用户提问：\n${userMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n`
-    conversationAnalysis += `AI回答：\n${assistantMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n`
+    conversationAnalysis = `\n\n## 对话历史\n\n**员工提问：**\n${userMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n\n**AI回答：**\n${assistantMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n\n**请分析对话历史，找出未解决的问题点。**`
   }
 
-  const systemPrompt = `你是一个专业的IT运维质检报告生成专家。请严格按照以下模板格式生成质检报告，**不得省略任何字段**，**严禁直接复制知识库内容**。\n\n【报告标题】\n[在这里填写简洁明了的报告标题]\n\n【工单基本信息】\n- 工单ID：【请在此补充具体内容】\n- 提交时间：【请在此补充具体内容】\n- 提交人：【请在此补充具体内容】\n- 问题类型：【请在此补充具体内容】\n\n【问题概述】\n[简要描述员工遇到的问题的核心要点，不超过100字]\n\n【对话历史分析】\n**未解决的问题点：**\n[详细分析对话历史，列出用户提出但未被解决或未被充分解答的问题点，每个问题点单独列出]\n\n**问题分析：**\n[分析这些未解决问题点的原因和影响]\n\n【解决步骤】\n**步骤1：**[具体操作步骤]\n**步骤2：**[具体操作步骤]\n**步骤3：**[具体操作步骤]\n（根据实际情况添加更多步骤）\n\n【注意事项】\n1. [操作过程中的第一个注意事项，包含安全风险或操作隐患]\n2. [操作过程中的第二个注意事项]\n3. [操作过程中的第三个注意事项]\n\n【质检结果】\n**问题解决状态：**【请在此补充具体内容】\n**AI回答质量评分：**【请在此补充具体内容】\n**知识库匹配度：**【请在此补充具体内容】\n**改进建议：**【请在此补充具体内容】\n\n【管理员补充】\n[管理员可在此添加额外的质检信息、观察记录、专业判断等]\n\n**重要提醒：**\n1. 这是一个模板框架，【】和[]标记的内容都需要管理员补充或根据实际情况填写\n2. **【关键】严禁直接复制知识库内容，必须基于知识库内容进行总结、提炼和改写**\n3. 必须详细分析对话历史，识别并列出所有未解决的问题点\n4. 解决步骤要详细、可操作，包含具体的操作指导\n5. 注意事项要全面，涵盖操作风险和安全隐患\n6. 严格按照上述格式输出，不要改变字段顺序，不要遗漏任何字段\n7. 知识库内容仅作为参考信息，必须转化为自己的语言和格式输出\n8. 如果知识库内容过长，只提取与问题相关的关键信息，不要全文复制`
-
-  // 限制知识库内容长度，避免 AI 直接复制
-  const truncatedContext = contextText.length > 1500 
-    ? contextText.substring(0, 1500) + '\n\n[知识库内容过长已截断，请提取关键信息进行总结]'
+  // 限制知识库内容
+  const truncatedContext = contextText.length > 1000 
+    ? contextText.substring(0, 1000) + '\n\n[内容已截断，请提取关键信息]'
     : contextText
 
-  const userPrompt = `员工问题：\n${ticketDescription}\n\n相关知识库内容（仅供参考，不要直接复制）：\n${truncatedContext || '无相关知识库内容，请基于常见IT运维问题处理经验生成报告'}${conversationAnalysis}\n\n**【关键指令】**：\n1. 严禁直接复制上方知识库内容\n2. 必须基于知识库内容进行总结、提炼和改写\n3. 只提取与问题相关的关键信息\n4. 按照系统提示中的模板格式生成报告\n5. 生成的报告必须包含所有标准化字段，不得遗漏`
+  const systemPrompt = `你是一个专业的IT运维质检报告生成专家。你的任务是根据提供的信息，生成一份结构完整的质检报告。\n\n## 报告必须包含以下8个部分，严格按照顺序和格式输出：\n\n【报告标题】\n填写格式：[填写简洁明了的报告标题]\n\n【工单基本信息】\n填写格式：\n- 工单ID：[填写工单ID]\n- 提交时间：[填写提交时间]\n- 提交人：[填写提交人]\n- 问题类型：[填写问题类型]\n\n【问题概述】\n填写格式：[简要描述员工遇到的问题的核心要点，50-100字]\n\n【对话历史分析】\n填写格式：\n[详细分析对话历史，列出所有用户提问但未被解决或未被充分解答的问题点。每个问题点必须单独列出，并说明为什么这个问题没有被解决。]\n\n【解决步骤】\n填写格式：\n**步骤1：**[填写第一个解决步骤，必须包含具体操作方法]\n**步骤2：**[填写第二个解决步骤]\n**步骤3：**[填写第三个解决步骤]\n[根据需要添加更多步骤]\n\n【注意事项】\n填写格式：\n1. [填写第一个注意事项，必须包含安全风险或操作隐患]\n2. [填写第二个注意事项]\n3. [填写第三个注意事项]\n[根据需要添加更多注意事项]\n\n【质检结果】\n填写格式：\n- 问题解决状态：[填写问题解决状态]\n- AI回答质量：[填写AI回答质量评估]\n- 知识库匹配度：[填写知识库匹配度评估]\n\n【管理员补充】\n填写格式：\n[管理员可在此添加额外的质检信息、观察记录、专业判断等]\n\n## 重要要求：\n1. 必须包含上述所有8个部分，**不得遗漏任何一个部分**\n2. 【报告标题】必须简洁明了，反映问题核心\n3. 【对话历史分析】必须详细列出未解决的问题点\n4. 【解决步骤】必须从知识库中提炼关键信息，但用**自己的语言重新组织**，不得直接复制原文\n5. 【注意事项】必须包含实际操作中的风险点\n6. 【质检结果】必须给出明确的评估\n7. **严禁直接复制知识库原文**，必须总结提炼后用自己的语言表达\n8. 每个部分的【】标记内部都要填写实际内容，不要只保留标记\n9. 语言要专业、清晰、易懂\n\n## 输出格式：\n直接输出完整的质检报告内容，不要包含任何额外的解释或说明。`
+
+  const userPrompt = `## 员工问题\n${ticketDescription}\n\n## 知识库参考信息\n${truncatedContext || '无相关知识库内容'}\n\n${conversationAnalysis}\n\n## 任务\n请根据以上信息，生成一份完整的质检报告。严格按照系统提示中的8个部分格式输出，每个部分都要填写实际内容，不要省略任何部分。`
 
   const result = await chatCompletion([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ])
+  ], 0.3, 20000)
 
-  // Parse the result - expect format: "标题：xxx\n\n内容：xxx"
-  const lines = result.split('\n')
+  // 从结果中提取标题（第一行的【报告标题】后面的内容）
+  const titleMatch = result.match(/【报告标题】\s*\n?\s*(.+)/)
   let title = 'IT问题质检报告'
   let content = result
-
-  for (const line of lines) {
-    if (line.startsWith('标题：') || line.startsWith('标题:')) {
-      title = line.replace(/^标题[：:]\s*/, '').trim()
-      content = result.replace(line, '').replace(/^内容[：:]\s*/, '').trim()
-      break
-    }
+  
+  if (titleMatch && titleMatch[1]) {
+    title = titleMatch[1].trim()
+    // 移除标题行，只保留剩余内容
+    content = result.replace(/^【报告标题】\s*\n?\s*.+\n?/, '')
   }
 
   return { title, content }
