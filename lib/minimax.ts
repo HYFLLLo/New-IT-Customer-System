@@ -1,5 +1,5 @@
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY
-const MINIMAX_MODEL = process.env.MINIMAX_MODEL || 'abab6.5s-chat'
+const MINIMAX_MODEL = process.env.MINIMAX_MODEL || 'MiniMax-M2.7'
 const MINIMAX_BASE_URL = 'https://api.minimax.chat/v1'
 
 interface MiniMaxMessage {
@@ -49,9 +49,12 @@ export async function chatCompletion(
       if (data.choices?.[0]?.message?.content) {
         return data.choices[0].message.content
       }
+    } else {
+      console.error('❌ [chatCompletion] API 响应错误:', response.status, response.statusText)
     }
-  } catch {
+  } catch (error) {
     // Fall back to mock response
+    console.error('❌ [chatCompletion] API 调用失败:', error)
   }
 
   // Fallback: generate a mock response based on the last user message
@@ -588,29 +591,135 @@ export async function generateQAReport(
   conversationHistory?: Array<{role: string; content: string}>
 ): Promise<{ title: string; content: string }> {
   
-  // 处理对话历史
+  // 处理对话历史 - 只提取员工的问题，不包含AI的回答
   let conversationAnalysis = ''
   if (conversationHistory && conversationHistory.length > 0) {
+    // 只分析员工的消息，避免AI的回答影响生成
     const userMessages = conversationHistory.filter(m => m.role === 'user').map(m => m.content)
-    const assistantMessages = conversationHistory.filter(m => m.role === 'assistant').map(m => m.content)
-    
-    conversationAnalysis = `\n\n## 对话历史\n\n**员工提问：**\n${userMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n\n**AI回答：**\n${assistantMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n\n**请分析对话历史，找出未解决的问题点，并基于这些问题点生成解决方案模板。**`
+
+    conversationAnalysis = `## 员工提出的问题（用于分析未解决点）：\n${userMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n\n**分析要求：基于以上员工问题，生成质检报告模板中需要填写的内容。**`
   }
 
-  const systemPrompt = `你是一个IT运维质检报告模板生成专家。请严格按照以下8个【】部分的格式输出，**每个【】部分都必须有内容，不得省略任何部分**。\n\n【报告标题】\n[填写简洁的报告标题]\n\n【工单基本信息】\n- 工单ID：[填写工单ID]\n- 提交时间：[填写提交时间]\n- 提交人：[填写提交人]\n- 问题类型：[填写问题类型]\n\n【问题概述】\n[简要描述员工遇到的问题，30-50字]\n\n【对话历史分析】\n[详细列出对话中未解决的问题点：]\n[1. 未解决问题点1]\n[2. 未解决问题点2]\n[3. 未解决问题点3]\n\n【解决步骤】\n**步骤1：**[填写第一个解决步骤]\n**步骤2：**[填写第二个解决步骤]\n**步骤3：**[填写第三个解决步骤]\n\n【注意事项】\n1. [填写第一个注意事项]\n2. [填写第二个注意事项]\n3. [填写第三个注意事项]\n\n【质检结果】\n- 问题解决状态：[填写]\n- AI回答质量：[填写]\n- 对话完整性：[填写]\n\n【管理员补充】\n[管理员可在此添加额外信息]\n\n## 【重要】输出要求：\n1. **必须包含上述全部8个【】部分**，每个【】都要有实际内容\n2. **不要生成故障排查步骤**，要生成质检报告模板\n3. **不要复制对话历史中的内容**，要分析并提炼\n4. **严格按照上述格式输出**，不要改变结构\n\n## 示例格式：\n【报告标题】\n网络连接问题质检报告\n\n【工单基本信息】\n- 工单ID：TKT-001\n- 提交时间：2024-01-15 09:30\n- 提交人：张三\n- 问题类型：网络问题\n\n【问题概述】\n员工反映无法连接公司内网，路由器指示灯异常。\n\n【对话历史分析】\n[这里分析对话历史，列出未解决的问题点]\n\n[以此类推，其他部分都要有实际内容]`
+  console.log('🆕 [generateQAReport - 新版本代码] 这个标记说明代码已更新!')
 
-  const userPrompt = `## 员工问题\n${ticketDescription}\n\n${conversationAnalysis}\n\n## 任务\n请根据以上信息，生成一份完整的质检报告模板。严格按照系统提示中的8个部分格式输出，每个部分都要填写实际内容，不要省略任何部分。`
+  const systemPrompt = `# 角色定义
+你是一个专业的IT运维质检报告生成专家，专门负责生成标准化的质量检查报告模板。
+
+# 核心任务
+根据员工问题和对话历史，生成一份完整的质检报告模板。
+
+# 报告格式（必须严格遵循）
+你必须生成包含以下**全部8个部分**的质检报告，每部分都必须有实际内容：
+
+## 第1部分：【报告标题】
+[在这里填写简洁明了的报告标题，例如：网络连接问题质检报告]
+
+## 第2部分：【工单基本信息】
+[在这里填写工单相关信息：]
+- 工单ID：[填写工单ID]
+- 提交时间：[填写提交时间]
+- 提交人：[填写提交人]
+- 问题类型：[填写问题类型]
+
+## 第3部分：【问题概述】
+[在这里简要描述员工遇到的核心问题，30-50字。分析问题的本质，不要复述员工原话。]
+
+## 第4部分：【对话历史分析】
+[在这里详细列出员工提出的所有问题和需求，分析对话中未解决的问题点：]
+[1. 未解决问题点1]
+[2. 未解决问题点2]
+[3. 未解决问题点3]
+
+## 第5部分：【解决步骤】
+**步骤1：**[填写第一个解决步骤，描述具体的操作方法]
+**步骤2：**[填写第二个解决步骤，描述具体的操作方法]
+**步骤3：**[填写第三个解决步骤，描述具体的操作方法]
+
+## 第6部分：【注意事项】
+[在这里列出处理此类问题需要注意的关键点：]
+1. [填写第一个注意事项]
+2. [填写第二个注意事项]
+3. [填写第三个注意事项]
+
+## 第7部分：【质检结果】
+[在这里评估问题解决情况和AI回答质量：]
+- 问题解决状态：[填写：已解决/部分解决/未解决]
+- AI回答质量：[填写：优秀/良好/一般/较差]
+- 对话完整性：[填写：完整/部分完整/不完整]
+
+## 第8部分：【管理员补充】
+[管理员可在此添加额外信息、备注或后续跟进计划]
+
+# 严格禁止
+1. **禁止生成故障排查步骤列表**（如"1. 检查网络 2. 重启设备"这种格式）
+2. **禁止复制对话历史中的内容**，必须分析提炼后填写
+3. **禁止省略任何【】部分**，所有8个部分都必须存在且有内容
+4. **禁止改变报告结构**，必须严格按照上述8部分格式
+
+# 输出要求
+- 必须生成包含**全部8个部分**的完整质检报告
+- 每个【】部分都要有**实际内容**，不能只有标题没有内容
+- 使用**中文标点符号**
+- 保持**段落结构清晰**
+- 内容要**专业、简洁、实用**
+
+# 示例输出格式：
+【报告标题】
+网络连接问题质检报告
+
+【工单基本信息】
+- 工单ID：TKT-001
+- 提交时间：2024-01-15 09:30
+- 提交人：张三
+- 问题类型：网络问题
+
+【问题概述】
+员工反映无法连接公司内网，路由器指示灯异常，无法正常开展工作。
+
+【对话历史分析】
+[分析员工提出的所有问题点和未解决的需求]
+
+[以此类推，其他部分都要有实际内容]`
+
+  const userPrompt = `# 输入信息
+
+## 员工问题描述
+${ticketDescription}
+
+${conversationAnalysis}
+
+# 输出要求
+**重要提醒**：
+1. 你必须生成**完整的质检报告**，包含**全部8个【】部分**
+2. 每个【】部分都要有**实际内容**，不能省略
+3. **不要生成故障排查步骤列表**，要生成质检报告模板
+4. **不要复制上面的内容**，要分析提炼后填写
+
+请严格按照上述8部分格式生成质检报告：`
+
+  console.log('=== [generateQAReport] 调试信息 ===')
+  console.log('【1】ticketDescription:', ticketDescription)
+  console.log('【2】conversationHistory:', JSON.stringify(conversationHistory, null, 2))
+  console.log('【3】conversationAnalysis:', conversationAnalysis)
+  console.log('【4】systemPrompt 长度:', systemPrompt.length, '字符')
+  console.log('【5】userPrompt 长度:', userPrompt.length, '字符')
+  console.log('=====================================')
 
   const result = await chatCompletion([
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
-  ], 0.3, 20000)
+  ], 0.7, 60000)
+
+  console.log('=== [generateQAReport] AI 返回的原始内容 ===')
+  console.log('结果长度:', result.length, '字符')
+  console.log('结果内容:\n', result)
+  console.log('============================================')
 
   // 从结果中提取标题（第一行的【报告标题】后面的内容）
   const titleMatch = result.match(/【报告标题】\s*\n?\s*(.+)/)
   let title = 'IT问题质检报告'
   let content = result
-  
+
   if (titleMatch && titleMatch[1]) {
     title = titleMatch[1].trim()
     // 移除标题行，只保留剩余内容
