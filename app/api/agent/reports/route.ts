@@ -102,14 +102,9 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Search relevant knowledge - limit to 2 results to avoid too much content
-    const searchResults = await searchChunks(ticket.description, 2)
-    
-    // Limit each chunk content to 500 characters
-    const context = searchResults.map((r) => {
-      const content = r.content
-      return content.length > 500 ? content.substring(0, 500) + '...[内容已截断]' : content
-    })
+    // 完全不使用知识库内容，只基于对话历史和工单描述生成报告
+    // 这样可以确保AI不会直接复制知识库内容
+    const context: string[] = []
 
     // Get conversation history
     const messages = await prisma.message.findMany({
