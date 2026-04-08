@@ -102,9 +102,14 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Search relevant knowledge
-    const searchResults = await searchChunks(ticket.description, 5)
-    const context = searchResults.map((r) => r.content)
+    // Search relevant knowledge - limit to 2 results to avoid too much content
+    const searchResults = await searchChunks(ticket.description, 2)
+    
+    // Limit each chunk content to 500 characters
+    const context = searchResults.map((r) => {
+      const content = r.content
+      return content.length > 500 ? content.substring(0, 500) + '...[内容已截断]' : content
+    })
 
     // Get conversation history
     const messages = await prisma.message.findMany({
