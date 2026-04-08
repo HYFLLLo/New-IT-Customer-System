@@ -584,25 +584,26 @@ export async function generateAnswerWithConfidence(
 // AI 生成质检报告草稿
 export async function generateQAReport(
   ticketDescription: string,
-  knowledgeContext: string[]
+  knowledgeContext: string[],
+  conversationHistory?: Array<{role: string; content: string}>
 ): Promise<{ title: string; content: string }> {
   const contextText = knowledgeContext.join('\n\n')
+  
+  // 处理对话历史
+  let conversationAnalysis = ''
+  if (conversationHistory && conversationHistory.length > 0) {
+    // 分析对话历史，提取未解决的点
+    const userMessages = conversationHistory.filter(m => m.role === 'user').map(m => m.content)
+    const assistantMessages = conversationHistory.filter(m => m.role === 'assistant').map(m => m.content)
+    
+    conversationAnalysis = `\n\n[对话历史分析]\n`
+    conversationAnalysis += `用户提问：\n${userMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n`
+    conversationAnalysis += `AI回答：\n${assistantMessages.map((msg, i) => `${i+1}. ${msg}`).join('\n')}\n`
+  }
 
-  const systemPrompt = `你是一个IT运维质检报告生成专家。根据以下信息生成一份完整的质检报告。
+  const systemPrompt = `你是一个专业的IT运维质检报告生成专家。根据提供的信息，生成一份结构完整、内容规范的质检报告模板。\n\n要求：\n1. 报告结构必须包含以下标准化字段：\n   - 报告标题\n   - 工单基本信息\n   - 问题概述\n   - 对话历史分析（未解决的点）\n   - 解决步骤（分步骤详细说明）\n   - 注意事项\n   - 质检结果\n   - 管理员补充\n\n2. 生成的内容应当是一个模板框架，包含必要的引导性提示和预留空白区域\n3. 对于需要管理员补充的部分，使用明确的提示标识，如：【请在此补充具体内容】\n4. 语言要专业但易懂，结构清晰，逻辑连贯\n5. 必须提炼对话历史中未解决的点，在报告中明确指出\n6. 解决步骤要详细、可操作，适合员工自助解决\n7. 注意事项要全面，包含安全风险和操作隐患`
 
-要求：
-1. 标题简洁明了
-2. 内容包含：问题概述、解决步骤（分步骤写）、注意事项
-3. 解决步骤要详细、可操作，适合员工自助解决
-4. 语言要专业但易懂`
-
-  const userPrompt = `员工问题：
-${ticketDescription}
-
-相关知识库内容：
-${contextText || '无相关知识库内容，请基于常见IT运维问题处理经验生成报告'}
-
-请生成一份质检报告，包含标题和完整内容。`
+  const userPrompt = `员工问题：\n${ticketDescription}\n\n相关知识库内容：\n${contextText || '无相关知识库内容，请基于常见IT运维问题处理经验生成报告'}${conversationAnalysis}\n\n请生成一份质检报告模板，包含上述所有标准化字段，并在需要管理员补充的地方使用明确的提示标识。`
 
   const result = await chatCompletion([
     { role: 'system', content: systemPrompt },

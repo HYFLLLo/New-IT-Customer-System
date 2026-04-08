@@ -106,8 +106,19 @@ export async function PUT(request: NextRequest) {
     const searchResults = await searchChunks(ticket.description, 5)
     const context = searchResults.map((r) => r.content)
 
+    // Get conversation history
+    const messages = await prisma.message.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: 'asc' },
+    })
+    
+    const conversationHistory = messages.map(m => ({
+      role: m.type === 'USER' ? 'user' : 'assistant',
+      content: m.content.replace(/^\[AI 回答\]\n/, ''),
+    }))
+
     // Generate report
-    const { title, content } = await generateQAReport(ticket.description, context)
+    const { title, content } = await generateQAReport(ticket.description, context, conversationHistory)
 
     return NextResponse.json({ title, content })
   } catch (error) {
