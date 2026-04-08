@@ -126,8 +126,10 @@ export async function PUT(request: NextRequest) {
     // Generate report
     console.log('开始生成报告...')
     const { title, content } = await generateQAReport(ticket.description, context, conversationHistory)
-    console.log('报告生成完成，标题:', title)
-    console.log('报告内容长度:', content.length)
+    console.log('=== AI返回的原始结果 ===')
+    console.log('标题:', title)
+    console.log('内容长度:', content.length)
+    console.log('内容预览:', content.substring(0, 200))
 
     return NextResponse.json({ title, content })
   } catch (error) {
