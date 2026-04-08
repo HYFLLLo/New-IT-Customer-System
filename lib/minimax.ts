@@ -21,9 +21,13 @@ interface ChatCompletionResponse {
 
 export async function chatCompletion(
   messages: MiniMaxMessage[],
-  temperature: number = 0.7
+  temperature: number = 0.7,
+  timeoutMs: number = 15000
 ): Promise<string> {
   try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+
     const response = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
       method: 'POST',
       headers: {
@@ -35,7 +39,10 @@ export async function chatCompletion(
         messages,
         temperature,
       }),
+      signal: controller.signal,
     })
+
+    clearTimeout(timer)
 
     if (response.ok) {
       const data: ChatCompletionResponse = await response.json()
