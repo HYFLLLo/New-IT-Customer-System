@@ -112,13 +112,22 @@ export async function PUT(request: NextRequest) {
       orderBy: { createdAt: 'asc' },
     })
     
+    console.log('=== 调试信息 ===')
+    console.log('工单ID:', ticketId)
+    console.log('工单描述:', ticket.description)
+    console.log('消息数量:', messages.length)
+    console.log('消息内容:', messages.map(m => ({type: m.type, content: m.content.substring(0, 50)})))
+    
     const conversationHistory = messages.map(m => ({
       role: m.type === 'USER' ? 'user' : 'assistant',
       content: m.content.replace(/^\[AI 回答\]\n/, ''),
     }))
 
     // Generate report
+    console.log('开始生成报告...')
     const { title, content } = await generateQAReport(ticket.description, context, conversationHistory)
+    console.log('报告生成完成，标题:', title)
+    console.log('报告内容长度:', content.length)
 
     return NextResponse.json({ title, content })
   } catch (error) {
