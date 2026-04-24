@@ -69,6 +69,20 @@ export async function analyzeBadcase(badcaseId: string): Promise<AnalysisResult 
 
     const parsed = JSON.parse(jsonMatch[0]) as AnalysisResult
 
+    // Validate the parsed result
+    if (!['retrieval', 'answer', 'knowledge'].includes(parsed.category)) {
+      console.error('Invalid category from LLM:', parsed.category)
+      return null
+    }
+    if (!Array.isArray(parsed.suggestions)) {
+      console.error('Invalid suggestions from LLM:', parsed.suggestions)
+      return null
+    }
+    if (typeof parsed.rootCause !== 'string' || typeof parsed.confidence !== 'number') {
+      console.error('Invalid analysis result structure')
+      return null
+    }
+
     // 保存分析记录
     await prisma.badcaseAnalysis.create({
       data: {
