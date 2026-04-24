@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { searchChunks } from '../chroma'
 import { generateAnswerWithConfidence } from '../minimax'
 import { evaluateAnswerWithLLM } from './deep-evaluator'
-
-const prisma = new PrismaClient()
 
 export interface RunProgress {
   total: number
@@ -36,15 +34,10 @@ export async function runEvaluation(
   let totalScore = 0
   let totalLatency = 0
   let passCount = 0
+  const failedItems: string[] = []
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i]
-
-    onProgress?.({
-      total: items.length,
-      completed: i,
-      current: item.question.slice(0, 50)
-    })
 
     const startTime = Date.now()
 
@@ -92,9 +85,28 @@ export async function runEvaluation(
       totalLatency += latencyMs
       if (overallScore >= 0.6) passCount++
 
+      // Report progress AFTER successful processing
+      onProgress?.({
+        total: items.length,
+        completed: i + 1,
+        current: item.question.slice(0, 50)
+      })
+
     } catch (error) {
       console.error(`Failed to evaluate item ${item.id}:`, error)
+      failedItems.push(item.id)
+      // Report failed progress
+      onProgress?.({
+        total: items.length,
+        completed: i + 1,
+        current: `FAILED: ${item.question.slice(0, 50)}`
+      })
     }
+  }
+
+  // Log failed items summary
+  if (failedItems.length > 0) {
+    console.warn(`Failed to evaluate ${failedItems.length} items:`, failedItems)
   }
 
   await prisma.evaluationRun.update({

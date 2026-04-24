@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
 
 export interface MetricsSummary {
   totalRequests: number
@@ -41,7 +39,12 @@ export async function collectRealtimeMetrics(
   const failReasonsDistribution: Record<string, number> = {}
   logs.forEach(log => {
     if (!log.passed && log.failReasons) {
-      const reasons = JSON.parse(log.failReasons) as string[]
+      let reasons: string[] = []
+      try {
+        reasons = JSON.parse(log.failReasons) as string[]
+      } catch {
+        console.warn(`Corrupted failReasons for log ${log.id}`)
+      }
       reasons.forEach(reason => {
         failReasonsDistribution[reason] = (failReasonsDistribution[reason] || 0) + 1
       })

@@ -58,7 +58,17 @@ AI回答：${answer}
 
     const jsonMatch = result.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0])
+      const parsed = JSON.parse(jsonMatch[0]) as DeepEvaluationResult
+      // Validate runtime type safety
+      if (
+        typeof parsed.accuracyScore === 'number' &&
+        typeof parsed.relevanceScore === 'number' &&
+        typeof parsed.completenessScore === 'number' &&
+        typeof parsed.explanation === 'string'
+      ) {
+        return parsed
+      }
+      console.warn('Invalid LLM response format, using defaults')
     }
   } catch (error) {
     console.error('LLM evaluation failed:', error)
