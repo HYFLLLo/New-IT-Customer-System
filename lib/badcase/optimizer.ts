@@ -86,7 +86,7 @@ export async function suggestOptimization(badcaseId: string): Promise<Optimizati
 
 export async function getOptimizationTasks(
   badcaseId: string
-): Promise<OptimizationTask[]> {
+): Promise<ReturnType<typeof prisma.optimizationTask.findMany> extends Promise<infer T> ? T : never> {
   return prisma.optimizationTask.findMany({
     where: { badcaseId },
     orderBy: { createdAt: 'desc' }

@@ -1,4 +1,4 @@
-import { chatCompletion } from './minimax'
+import { chatCompletion } from '@/lib/minimax'
 
 export interface DeepEvaluationResult {
   accuracyScore: number

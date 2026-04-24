@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { NotFoundError } from '@prisma/client/runtime'
 
 export async function GET(
   request: NextRequest,
@@ -46,7 +45,8 @@ export async function PATCH(
 
     return NextResponse.json(badcase)
   } catch (error) {
-    if (error instanceof NotFoundError || (error instanceof Error && error.name === 'NotFoundError')) {
+    // Check for Prisma not found error (P2025 is the error code for "Record not found")
+    if (error instanceof Error && error.message?.includes('P2025')) {
       return NextResponse.json({ error: 'Badcase not found' }, { status: 404 })
     }
     console.error('Failed to update badcase:', error)

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       if (rating <= 2) {
         const ticket = await prisma.ticket.findUnique({
           where: { id: ticketId },
-          include: { messages: { where: { type: 'agent' }, orderBy: { createdAt: 'desc' }, take: 1 } }
+          include: { messages: { where: { type: 'AGENT' }, orderBy: { createdAt: 'desc' }, take: 1 } }
         })
         const lastAgentMessage = ticket?.messages[0]?.content ?? null
         await detectFromUserFeedback(
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     if (rating <= 2) {
       const ticket = await prisma.ticket.findUnique({
         where: { id: ticketId },
-        include: { messages: { where: { type: 'agent' }, orderBy: { createdAt: 'desc' }, take: 1 } }
+        include: { messages: { where: { type: 'AGENT' }, orderBy: { createdAt: 'desc' }, take: 1 } }
       })
       const lastAgentMessage = ticket?.messages[0]?.content ?? null
       await detectFromUserFeedback(

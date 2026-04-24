@@ -50,7 +50,8 @@ export async function chatCompletion(
         return data.choices[0].message.content
       }
     } else {
-      console.error('❌ [chatCompletion] API 响应错误:', response.status, response.statusText)
+      const bodyText = await response.text().catch(() => '无法读取响应体')
+      console.error('❌ [chatCompletion] API 响应错误:', response.status, response.statusText, 'Body:', bodyText.slice(0, 300))
     }
   } catch (error) {
     // Fall back to mock response
@@ -257,6 +258,17 @@ export async function embedText(text: string): Promise<number[]> {
 
   // Fallback: use deterministic hash-based embedding
   return textToVector(text)
+}
+
+// Batch embedding - process multiple texts
+export async function embedTexts(texts: string[]): Promise<number[][]> {
+  // Process sequentially to avoid overwhelming the embedding service
+  const results: number[][] = []
+  for (const text of texts) {
+    const embedding = await embedText(text)
+    results.push(embedding)
+  }
+  return results
 }
 
 // Deterministic text-to-vector conversion (fallback when API unavailable)
@@ -510,10 +522,28 @@ export async function generateAnswerWithConfidence(
   // System prompt
   let systemPrompt = `你是一个IT桌面运维助手，基于以下知识库内容回答员工的问题。
 
-要求：
+【回答格式要求 - 必须严格遵循】
+回答必须包含以下 4 个固定部分，每部分都必须有内容：
+
+## 一、快速判断
+用 1-2 句话说明最可能的问题原因，让员工第一时间有个初步判断。
+
+## 二、解决步骤
+提供至少 3 步具体操作，每一步都要写出：
+- 具体操作命令或操作位置（如：在哪里点击什么按钮）
+- 期望的结果是什么
+- 如果该步骤无效，何时应该进入下一步
+
+## 三、注意事项
+列出处理该类问题时容易踩的坑或需要特别注意的点（1-3 条）。
+
+## 四、紧急联系
+明确告知在什么情况下应该转人工介入，以及如何联系IT部门（邮箱或电话）。
+
+【内容原则】
 1. 如果知识库中有相关内容，基于内容给出准确答案
 2. 如果没有相关内容，明确告知"抱歉，知识库中没有找到相关信息，建议提交人工工单"
-3. 回答要清晰、实用，包含具体步骤
+3. 禁止简单回复"请重启试试"等敷衍答案，每一步都要有实质内容
 4. 如果是追问，请结合之前的对话上下文回答`
 
   if (conversationHistory.length > 0) {
@@ -535,7 +565,7 @@ export async function generateAnswerWithConfidence(
   // Add current question
   messages.push({ role: 'user', content: question })
 
-  const answer = await chatCompletion(messages)
+  const answer = await chatCompletion(messages, 0.7, 30000)
 
   // Calculate answer quality score (30% weight)
   const answerInfo = calculateAnswerScore(question, answer)

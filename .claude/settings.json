@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(curl -s http://localhost:8000/api/v1/heartbeat)",
+      "Bash(lsof -ti:3000,8000)",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(process.env.MINIMAX_API_KEY\\)\")",
+      "Bash(curl -s --max-time 15 https://api.minimax.chat/v1/text/chatcompletion_v2 -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"model\":\"MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":20}')",
+      "Bash(curl -s --max-time 15 -k https://api.minimax.chat/v1/text/chatcompletion_v2 -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"model\":\"MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":20}')",
+      "Bash(curl -s --max-time 10 -o /dev/null -w \"%{http_code}\" \"https://api.minimax.chat\")",
+      "Bash(curl -s --max-time 15 -L https://api.minimax.chat/v1/text/chatcompletion_v2 -H 'Content-Type: application/json' -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -d '{\"model\":\"MiniMax-M2.7\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":20}')",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(pkill -f \"python3 scripts/start-chroma.py\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx prisma *)",
+      "Bash(npx jest *)",
+      "Bash(npm test *)",
+      "Bash(npm install *)",
+      "Bash(npx ts-node --esm -e ' *)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

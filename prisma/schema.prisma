@@ -163,3 +163,143 @@ model Feedback {
   user     User    @relation(fields: [userId], references: [id])
   userId   String
 }
+
+model EvaluationDataset {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  version     String   @default("v1.0")
+  createdAt   DateTime @default(now())
+
+  items EvaluationItem[]
+  runs  EvaluationRun[]
+}
+
+model EvaluationItem {
+  id                String  @id @default(uuid())
+  datasetId         String
+  dataset           EvaluationDataset @relation(fields: [datasetId], references: [id])
+  question          String
+  category          String
+  subcategory       String
+  difficulty        String
+  questionType      String
+  expectedKeyPoints String
+  sourceDoc         String
+  sourceSection     String
+  createdAt DateTime @default(now())
+
+  results EvaluationResult[]
+}
+
+model EvaluationResult {
+  id          String   @id @default(uuid())
+  itemId      String
+  item        EvaluationItem @relation(fields: [itemId], references: [id])
+  runId       String
+  run         EvaluationRun  @relation(fields: [runId], references: [id])
+  question    String
+  answer      String
+  confidence  Float
+  accuracyScore    Float
+  relevanceScore   Float
+  completenessScore Float
+  latencyMs        Int
+  retrievalScore   Float
+  answerQualityScore Float
+  coverageScore     Float
+  overallScore     Float
+  createdAt DateTime @default(now())
+}
+
+model EvaluationRun {
+  id          String   @id @default(uuid())
+  datasetId   String
+  dataset     EvaluationDataset @relation(fields: [datasetId], references: [id])
+  name        String
+  description String?
+  runType     String
+  totalItems      Int     @default(0)
+  avgScore        Float   @default(0)
+  avgLatencyMs    Int     @default(0)
+  passRate        Float   @default(0)
+  status      String   @default("pending")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  results EvaluationResult[]
+}
+
+model RealtimeCheckLog {
+  id          String   @id @default(uuid())
+  sessionId   String
+  question    String
+  answer      String
+  confidence  Float
+  passed      Boolean
+  failReasons String?
+  latencyMs   Int
+  createdAt   DateTime @default(now())
+}
+
+// Badcase 记录
+model Badcase {
+  id            String    @id @default(uuid())
+  sessionId     String    // 关联的会话/Ticket
+  question      String    // 原始问题
+  answer        String?   // AI 回答（如果有）
+  confidence    Float?    // 置信度
+
+  // 发现来源
+  sourceType    String    // "evaluation_failed" | "user_feedback" | "low_confidence"
+  sourceId      String?   // 关联的 EvaluationResult.id 或 Feedback.id
+
+  // 分类归因
+  category      String?   // "retrieval" | "answer" | "knowledge"
+  rootCause     String?   // 根因描述
+
+  // 处理状态
+  status        String    @default("pending")  // pending/analyzing/optimized/verified/closed
+  priority      String    @default("medium")   // low/medium/high/critical
+
+  // 优化记录
+  optimization  String?   // 优化措施描述
+  optimizedAt   DateTime?
+
+  // 验证结果
+  verified      Boolean   @default(false)
+  verifiedAt    DateTime?
+  verificationResult String? // "improved" | "no_change" | "degraded"
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  analyses      BadcaseAnalysis[]
+  tasks         OptimizationTask[]
+}
+
+// Badcase 分析记录
+model BadcaseAnalysis {
+  id          String   @id @default(uuid())
+  badcaseId   String
+  badcase     Badcase  @relation(fields: [badcaseId], references: [id])
+  analysisType String  // "auto" | "manual"
+  category     String  // 分析后的分类
+  rootCause    String  // 根因
+  suggestions  String  // 优化建议 (JSON array)
+  createdBy   String?  // 如果是人工分析，记录分析人
+  createdAt   DateTime @default(now())
+}
+
+// 优化任务
+model OptimizationTask {
+  id          String   @id @default(uuid())
+  badcaseId   String
+  badcase     Badcase  @relation(fields: [badcaseId], references: [id])
+  taskType    String   // "add_knowledge" | "update_prompt" | "merge_cases"
+  description String   // 任务描述
+  status      String   @default("pending")  // pending/in_progress/completed/failed
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+}

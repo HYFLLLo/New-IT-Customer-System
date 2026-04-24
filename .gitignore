@@ -46,6 +46,3 @@ chroma/
 
 # Uploads
 uploads/
-
-# ChromaDB data
-chromadb_data/
