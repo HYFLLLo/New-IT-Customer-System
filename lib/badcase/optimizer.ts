@@ -21,28 +21,34 @@ export async function createOptimizationTask(input: OptimizationTaskInput): Prom
 }
 
 export async function completeOptimizationTask(taskId: string): Promise<void> {
-  await prisma.optimizationTask.update({
-    where: { id: taskId },
-    data: {
-      status: 'completed',
-      completedAt: new Date()
+  await prisma.$transaction(async (tx) => {
+    // First find the task to get badcaseId
+    const task = await tx.optimizationTask.findUnique({
+      where: { id: taskId }
+    })
+
+    if (!task) {
+      throw new Error(`Optimization task not found: ${taskId}`)
     }
-  })
 
-  // 更新 Badcase 状态
-  const task = await prisma.optimizationTask.findUnique({
-    where: { id: taskId }
-  })
+    // Update task status
+    await tx.optimizationTask.update({
+      where: { id: taskId },
+      data: {
+        status: 'completed',
+        completedAt: new Date()
+      }
+    })
 
-  if (task) {
-    await prisma.badcase.update({
+    // Update badcase status
+    await tx.badcase.update({
       where: { id: task.badcaseId },
       data: {
         status: 'optimized',
         optimizedAt: new Date()
       }
     })
-  }
+  })
 }
 
 export async function suggestOptimization(badcaseId: string): Promise<OptimizationTaskInput | null> {
