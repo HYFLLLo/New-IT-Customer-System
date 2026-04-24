@@ -10,6 +10,7 @@ interface FileUploadProps {
 
 const SUPPORTED_TYPES = ['application/pdf', 'text/markdown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 const SUPPORTED_EXTENSIONS = ['.pdf', '.md', '.docx']
+const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
@@ -17,8 +18,12 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [fileName, setFileName] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
 
   const validateFile = (file: File): string | null => {
+    if (file.size > MAX_FILE_SIZE) {
+      return `文件大小超过限制。请上传小于 ${MAX_FILE_SIZE / 1024 / 1024}MB 的文件`
+    }
     const ext = '.' + file.name.split('.').pop()?.toLowerCase()
     if (!SUPPORTED_EXTENSIONS.includes(ext)) {
       return `不支持的文件类型。请上传以下格式: ${SUPPORTED_EXTENSIONS.join(', ')}`
@@ -48,8 +53,14 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       formData.append('file', file)
       formData.append('uploadedById', 'default-user') // TODO: Use actual user ID
 
+      // Abort any previous upload to prevent race conditions
+      if (xhrRef.current) {
+        xhrRef.current.abort()
+      }
+
       // Use XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest()
+      xhrRef.current = xhr
 
       await new Promise<void>((resolve, reject) => {
         xhr.upload.addEventListener('progress', (event) => {
@@ -130,6 +141,10 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   }
 
   const handleCancel = () => {
+    if (xhrRef.current) {
+      xhrRef.current.abort()
+      xhrRef.current = null
+    }
     if (inputRef.current) {
       inputRef.current.value = ''
     }
