@@ -5,6 +5,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  if (!params.id || !/^[0-9a-f-]{36}$/i.test(params.id)) {
+    return NextResponse.json({ error: 'Invalid badcase ID' }, { status: 400 })
+  }
+
   try {
     const result = await analyzeBadcase(params.id)
 
