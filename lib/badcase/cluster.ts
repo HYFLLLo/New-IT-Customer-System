@@ -60,7 +60,7 @@ export async function clusterSimilarBadcases(
   return clusters
 }
 
-function cosineSimilarity(a: number[], b: number[]): number {
+export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length) return 0
 
   let dotProduct = 0
