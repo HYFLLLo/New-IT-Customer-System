@@ -1,3 +1,3 @@
-export const SearchTest = () => {
+export function SearchTest() {
   return null
 }
