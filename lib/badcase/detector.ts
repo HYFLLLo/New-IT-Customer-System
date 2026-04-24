@@ -31,7 +31,7 @@ export async function createBadcase(input: BadcaseCreateInput): Promise<string> 
 }
 
 export function determinePriority(
-  sourceType: string,
+  sourceType: 'evaluation_failed' | 'user_feedback' | 'low_confidence',
   confidence?: number
 ): 'low' | 'medium' | 'high' | 'critical' {
   if (sourceType === 'user_feedback') {
@@ -79,8 +79,8 @@ export async function detectFromUserFeedback(
     await createBadcase({
       sessionId: ticketId,
       question,
-      answer: answer || undefined,
-      confidence: confidence || undefined,
+      answer: answer ?? undefined,
+      confidence: confidence ?? undefined,
       sourceType: 'user_feedback',
       sourceId: feedbackId,
       priority: rating === 1 ? 'critical' : 'high'

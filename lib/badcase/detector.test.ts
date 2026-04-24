@@ -1,12 +1,3 @@
-// Mock prisma before importing detector
-jest.mock('@/lib/prisma', () => ({
-  prisma: {
-    badcase: {
-      create: jest.fn()
-    }
-  }
-}))
-
 import { determinePriority } from './detector'
 
 describe('determinePriority', () => {
