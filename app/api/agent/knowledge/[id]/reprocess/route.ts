@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { deleteChunks } from '@/lib/chroma'
-import { parseDocument, getFileType } from '@/lib/parser'
+import { parseDocument } from '@/lib/parser'
 import { embedText } from '@/lib/minimax'
 import { ChromaClient } from 'chromadb'
-import { DocumentStatus } from '@prisma/client'
-import * as fs from 'fs'
 
 // POST /api/agent/knowledge/[id]/reprocess - Reprocess a document
 export async function POST(
@@ -25,6 +23,10 @@ export async function POST(
         { error: 'Document not found' },
         { status: 404 }
       )
+    }
+
+    if (document.status === 'PROCESSING') {
+      return NextResponse.json({ error: 'Document is already being processed' }, { status: 409 })
     }
 
     // Start reprocessing in background
@@ -131,7 +133,7 @@ async function reprocessDocument(
       data: { progress: `正在入库 (0/${chunkData.length})...` },
     })
 
-    const client = new ChromaClient({ path: 'http://localhost:8000' })
+    const client = new ChromaClient({ path: process.env.CHROMA_URL || 'http://localhost:8000' })
     const col = await client.getCollection({ name: 'knowledge_base' })
 
     for (let i = 0; i < normalizedChunks.length; i += batchSize) {

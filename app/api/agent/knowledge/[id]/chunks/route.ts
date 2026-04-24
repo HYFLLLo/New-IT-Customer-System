@@ -9,6 +9,11 @@ export async function GET(
   try {
     const { id } = await params
 
+    const document = await prisma.document.findUnique({ where: { id } })
+    if (!document) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
     const chunks = await prisma.chunk.findMany({
       where: { documentId: id },
       orderBy: { id: 'asc' },

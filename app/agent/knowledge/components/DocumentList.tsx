@@ -71,7 +71,8 @@ export function DocumentList({ refreshKey }: DocumentListProps) {
   // Trigger refresh when refreshKey changes
   useEffect(() => {
     mutate()
-  }, [refreshKey, mutate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey])
 
   // Fetch chunks for a specific document
   const fetchChunks = async (documentId: string) => {
@@ -116,6 +117,7 @@ export function DocumentList({ refreshKey }: DocumentListProps) {
         toast.error('删除失败')
       }
     } catch (error) {
+      console.error('Delete document error:', error)
       toast.error('删除失败')
     }
   }
@@ -135,6 +137,7 @@ export function DocumentList({ refreshKey }: DocumentListProps) {
         toast.error('重新处理失败')
       }
     } catch (error) {
+      console.error('Reprocess document error:', error)
       toast.error('重新处理失败')
     }
   }
@@ -144,11 +147,16 @@ export function DocumentList({ refreshKey }: DocumentListProps) {
   }
 
   const handleCopyChunk = async (chunk: Chunk) => {
+    if (!navigator.clipboard) {
+      toast.error('复制失败：剪贴板不可用')
+      return
+    }
     try {
       await navigator.clipboard.writeText(chunk.content)
       setCopiedChunkId(chunk.id)
       setTimeout(() => setCopiedChunkId(null), 2000)
     } catch (error) {
+      console.error('Copy chunk error:', error)
       toast.error('复制失败')
     }
   }
