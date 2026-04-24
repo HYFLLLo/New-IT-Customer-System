@@ -57,10 +57,12 @@ export function SearchTest() {
     })
   }
 
+  const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
   const highlightQuery = (text: string, query: string): React.ReactNode => {
     if (!query) return text
-
-    const parts = text.split(new RegExp(`(${query})`, 'gi'))
+    const escapedQuery = escapeRegExp(query)
+    const parts = text.split(new RegExp(`(${escapedQuery})`, 'gi'))
     return parts.map((part, index) =>
       part.toLowerCase() === query.toLowerCase() ? (
         <mark key={index} className="bg-yellow-200 text-yellow-900 rounded px-0.5">
