@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { searchChunks } from '@/lib/chroma'
 import { generateAnswerWithConfidence } from '@/lib/minimax'
-import { evaluateAnswerWithLLM } from '@/lib/evaluation/deep-evaluator'
 
 export interface VerificationResult {
   improved: boolean
