@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { searchChunks } from '../chroma'
 import { generateAnswerWithConfidence } from '../minimax'
 import { evaluateAnswerWithLLM } from './deep-evaluator'
+import { detectFromEvaluationFailed } from '../badcase/detector'
 
 export interface RunProgress {
   total: number
@@ -80,6 +81,18 @@ export async function runEvaluation(
           overallScore
         }
       })
+
+      // Detect badcase if score is low
+      if (overallScore < 0.4) {
+        await detectFromEvaluationFailed(
+          run.id,
+          item.question,
+          ragResult.answer,
+          ragResult.confidence,
+          result.id,
+          overallScore
+        )
+      }
 
       totalScore += overallScore
       totalLatency += latencyMs

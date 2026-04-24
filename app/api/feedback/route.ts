@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { detectFromUserFeedback } from '@/lib/badcase/detector'
 
 // POST /api/feedback - Submit feedback
 export async function POST(request: NextRequest) {
@@ -32,6 +33,22 @@ export async function POST(request: NextRequest) {
         where: { ticketId },
         data: { rating, comment },
       })
+      // Detect badcase if rating is low
+      if (rating <= 2) {
+        const ticket = await prisma.ticket.findUnique({
+          where: { id: ticketId },
+          include: { messages: { where: { type: 'agent' }, orderBy: { createdAt: 'desc' }, take: 1 } }
+        })
+        const lastAgentMessage = ticket?.messages[0]?.content ?? null
+        await detectFromUserFeedback(
+          ticketId,
+          ticket?.description ?? '',
+          lastAgentMessage,
+          ticket?.confidence ?? null,
+          feedback.id,
+          rating
+        )
+      }
       return NextResponse.json({ feedback })
     }
 
@@ -43,6 +60,23 @@ export async function POST(request: NextRequest) {
         comment,
       },
     })
+
+    // Detect badcase if rating is low
+    if (rating <= 2) {
+      const ticket = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        include: { messages: { where: { type: 'agent' }, orderBy: { createdAt: 'desc' }, take: 1 } }
+      })
+      const lastAgentMessage = ticket?.messages[0]?.content ?? null
+      await detectFromUserFeedback(
+        ticketId,
+        ticket?.description ?? '',
+        lastAgentMessage,
+        ticket?.confidence ?? null,
+        feedback.id,
+        rating
+      )
+    }
 
     return NextResponse.json({ feedback }, { status: 201 })
   } catch (error) {
