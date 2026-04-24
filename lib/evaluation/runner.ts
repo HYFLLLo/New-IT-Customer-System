@@ -64,7 +64,7 @@ export async function runEvaluation(
         0.2 * ragResult.confidence
       )
 
-      await prisma.evaluationResult.create({
+      const result = await prisma.evaluationResult.create({
         data: {
           itemId: item.id,
           runId: run.id,
